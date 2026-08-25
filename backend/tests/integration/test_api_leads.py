@@ -52,6 +52,28 @@ class TestListing:
         scores = [item["quality"]["score"] for item in items]
         assert scores == sorted(scores, reverse=True)
 
+    @pytest.mark.parametrize("sort", ["-quality", "followers", "-name", "created", "-updated"])
+    def test_every_documented_sort_field_is_accepted(self, client: TestClient, sort: str) -> None:
+        assert client.get(f"{API}/leads", params={"sort": sort, "page_size": 5}).status_code == 200
+
+    def test_unknown_sort_field_is_rejected_not_silently_defaulted(
+        self, client: TestClient
+    ) -> None:
+        """A typo'd sort key must not quietly return the default ordering.
+
+        Falling back would hand the caller plausible-looking data in the wrong order with
+        nothing anywhere to indicate it — the worst kind of wrong answer, because it looks
+        exactly like the right one.
+        """
+        response = client.get(f"{API}/leads", params={"sort": "quality_score"})
+        assert response.status_code == 422
+        body = response.json()
+        assert body["type"].endswith("invalid_request")
+        # The error names the field and the accepted values, so the caller can fix it without
+        # reading the source.
+        assert "quality_score" in body["detail"]
+        assert "quality" in body["detail"]
+
 
 class TestFilters:
     def test_search_finds_the_franchise_branches(self, client: TestClient) -> None:

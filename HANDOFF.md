@@ -169,8 +169,8 @@ uses the `httpx` the verification layer already depends on.
 
 ## 5. Tests
 
-**302 passing.** 192 unit (no database, ~3 s) + 110 integration (real PostgreSQL, ~2 min).
-104 of those are new in Phase 2.
+**309 passing.** 193 unit (no database, ~7 s) + 116 integration (real PostgreSQL, ~4.5 min).
+110 of those are new in Phase 2.
 
 `ruff check`, `ruff format --check` and `mypy --strict` are all clean over `backend/`.
 
@@ -187,6 +187,28 @@ Worth knowing about the new tests:
 - **A query counter guards against N+1** (`tests/integration/helpers.py`). It asserts a 100-row
   page costs exactly as many SQL statements as a 25-row page. An N+1 returns perfectly correct
   data, slowly, so no other test would notice the regression.
+
+### 5.1 Two defects found and fixed during verification
+
+Both were caught by running the suite and the API against the real corpus rather than by
+reading the code, which is the argument for doing that before calling a phase done.
+
+**`alembic check` was failing on schema v3.** Two causes. `op.create_check_constraint()` applies
+the metadata naming convention to the name it is given, so passing the already-prefixed
+`"ck_leads_no_self_merge"` produced `ck_leads_ck_leads_no_self_merge` in the database. And the
+GIN trigram index on `leads.normalized_name` was created by raw SQL in the migration but never
+declared on the model, so autogenerate wanted to drop it on the next run. Both fixed: the
+migration passes the bare constraint name, and the index is declared in `Lead.__table_args__`
+with `postgresql_using="gin"`. `alembic check` is clean, and it is a CI gate, so this would have
+blocked the pipeline.
+
+**An unknown `sort` value returned 200 with the default ordering.** `apply_sort()` fell back to
+`"quality"` for any unrecognised field. A client typing `sort=quality_score` instead of
+`sort=quality` got a successful response containing plausible-looking data in the wrong order,
+with nothing anywhere to indicate it — the worst class of wrong answer, because it is
+indistinguishable from the right one. It now raises `InvalidRequestError`, which the existing
+handler renders as a 422 naming the field and the accepted values. Two regression tests cover
+it: every documented sort field is accepted, and an undocumented one is rejected.
 
 ---
 

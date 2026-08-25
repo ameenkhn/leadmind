@@ -58,6 +58,15 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "leads"
     __table_args__ = (
         Index("ix_leads_normalized_name", "normalized_name"),
+        # Declared here as well as created in the migration, so `alembic check` stays clean.
+        # A GIN trigram index rather than a b-tree: the lead search is `ILIKE '%needle%'`, and
+        # a b-tree cannot serve a leading wildcard.
+        Index(
+            "ix_leads_normalized_name_trgm",
+            "normalized_name",
+            postgresql_using="gin",
+            postgresql_ops={"normalized_name": "gin_trgm_ops"},
+        ),
         Index("ix_leads_company_id", "company_id"),
         Index("ix_leads_merged_into_id", "merged_into_id"),
         CheckConstraint("merged_into_id <> id", name="no_self_merge"),

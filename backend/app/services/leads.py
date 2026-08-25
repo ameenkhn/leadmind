@@ -24,6 +24,7 @@ from typing import Any, Final
 from sqlalchemy import Select, and_, exists, func, or_, select
 from sqlalchemy.orm import Session, aliased, joinedload, selectinload
 
+from app.core.errors import InvalidRequestError
 from app.ingestion.quality.rubric import get_rubric
 from app.models import (
     Category,
@@ -314,7 +315,14 @@ def apply_sort(
     descending = sort.startswith("-")
     field_name = sort.lstrip("-") or "quality"
     if field_name not in SORT_FIELDS:
-        field_name = "quality"
+        # Rejected rather than silently falling back to the default. A typo'd sort key that
+        # quietly returns the default ordering hands the caller plausible-looking data in the
+        # wrong order with nothing anywhere to indicate it — the worst kind of wrong answer.
+        raise InvalidRequestError(
+            f"unknown sort field {field_name!r}",
+            field="sort",
+            allowed=sorted(SORT_FIELDS),
+        )
 
     if field_name == "quality":
         column: Any = (

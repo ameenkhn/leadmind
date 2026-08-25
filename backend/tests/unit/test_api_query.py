@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from sqlalchemy.dialects import postgresql
 
+from app.core.errors import InvalidRequestError
 from app.models.enums import EntityKind, IdentifierKind
 from app.services.leads import (
     DEFAULT_SORT,
@@ -55,15 +57,30 @@ class TestSorting:
             )
             assert sql.rstrip().endswith("leads.id ASC"), sort
 
-    def test_unknown_sort_falls_back_instead_of_failing(self) -> None:
-        """Sort keys come from a query string. An unrecognised one is a typo, not an attack
-        surface: it must never reach SQL, and it must not 500 either."""
-        hostile = "; DROP TABLE leads--"
-        sql = compile_sql(
-            apply_sort(build_lead_query(LeadFilters()), hostile, rubric_version=RUBRIC)
-        )
-        assert "DROP" not in sql.upper()
-        assert "data_quality_scores" in sql
+    def test_hostile_sort_never_reaches_sql(self) -> None:
+        """Sort keys come from a query string and are the one place a column name is chosen by
+        the caller, so they are the one place SQL injection could plausibly enter."""
+        with pytest.raises(InvalidRequestError):
+            apply_sort(
+                build_lead_query(LeadFilters()), "; DROP TABLE leads--", rubric_version=RUBRIC
+            )
+
+    def test_unknown_sort_is_rejected_rather_than_silently_defaulted(self) -> None:
+        """Deliberately *not* a fallback to the default ordering.
+
+        A fallback keeps the response a 200 and hands the caller plausible-looking rows in an
+        order they did not ask for, with nothing anywhere to indicate it — the worst class of
+        wrong answer, because it is indistinguishable from the right one. Rejecting is also
+        consistent with how every other invalid query parameter on this endpoint behaves.
+
+        The security property the fallback was protecting is unchanged and in fact stronger:
+        an unrecognised key is now refused *before* any SQL is built, rather than after.
+        """
+        with pytest.raises(InvalidRequestError) as info:
+            apply_sort(build_lead_query(LeadFilters()), "quality_score", rubric_version=RUBRIC)
+        # The error has to be actionable without reading the source.
+        assert "quality_score" in str(info.value)
+        assert "quality" in str(info.value.context["allowed"])
 
     def test_descending_sort_puts_nulls_last(self) -> None:
         sql = compile_sql(

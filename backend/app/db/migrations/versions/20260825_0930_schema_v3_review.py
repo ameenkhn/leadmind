@@ -42,7 +42,7 @@ def upgrade() -> None:
         ondelete="SET NULL",
     )
     op.create_index("ix_leads_merged_into_id", "leads", ["merged_into_id"])
-    op.create_check_constraint("ck_leads_no_self_merge", "leads", "merged_into_id <> id")
+    op.create_check_constraint("no_self_merge", "leads", "merged_into_id <> id")
 
     op.add_column("duplicate_candidates", sa.Column("resolution_note", sa.Text(), nullable=True))
 
