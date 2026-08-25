@@ -3,7 +3,8 @@
 **AI Lead Intelligence & Qualification Engine** — an evidence-grounded system that turns raw
 scraped leads into ranked, explained, actionable prospects.
 
-> **Status: Phase 1 of 10 complete.** The ingestion pipeline is built, tested and running.
+> **Status: Phases 1 and 1b of 10 complete.** Ingestion and verification are built, tested and
+> running.
 > Everything below describes what exists today; the roadmap at the end says what does not.
 > Every number on this page was measured, not estimated. Nothing here is a benchmark claim.
 
@@ -38,7 +39,7 @@ Full profile: **[`docs/01-dataset-analysis.md`](docs/01-dataset-analysis.md)**.
 
 ---
 
-## What Phase 1 does
+## What Phases 1 and 1b do
 
 ```
 Outbound_Leads.xlsx
@@ -50,6 +51,9 @@ Outbound_Leads.xlsx
   → company resolution      owned-domain keyed, franchise-aware
   → data quality score      config-driven rubric, every reason persisted
   → PostgreSQL              idempotent upserts against natural keys
+
+  → verification            MX per domain · website liveness · SSRF-guarded, cached, TTL'd
+  → rescore                 rubric v1.1, with unmeasured factors dropping out
 ```
 
 Measured output over the real file:
@@ -64,9 +68,12 @@ Measured output over the real file:
 | Follower observations | 2 314 |
 | Pairs queued for human review | 73 |
 | Weak eval labels seeded | 900 |
-| Data quality — mean / median | 69.4 / 72.8 |
+| Email domains verified (1,044 with MX) | 1,103 |
+| Leads proven undeliverable | 34 |
+| Leads on managed business email | 921 |
+| Data quality — mean / median (rubric v1.1) | 72.0 / 75.7 |
 | Full ingest | ~23 s |
-| Tests | 123 passing |
+| Tests | 198 passing |
 
 ```
 rows_read == leads_total + rows_merged
@@ -127,6 +134,39 @@ reasons land in `validation_issues` where they can be counted, filtered, and sho
 gaps. This is what makes reconciliation possible, and reconciliation is the only proof that
 ingestion worked.
 
+### Unmeasured is not zero, and unknown is not unreachable
+
+Phase 1b measures what Phase 1 refused to guess at: 1,103 email domains checked by MX lookup,
+1,044 verified, **34 leads proven undeliverable**, 906 domains found to run managed business email
+(~39% — a digital-maturity signal, given this dataset has no firmographics at all).
+
+Two distinctions carry that work:
+
+An `UNREACHABLE` domain is a measurement; an `UNKNOWN` one is a *resolver timeout*. Collapsing
+them lets one bad afternoon on your DNS silently mark thousands of good leads dead — and the
+result gets cached, so it stays wrong. A test asserts a resolver failure produces exactly the same
+score as never having checked.
+
+And a rubric factor that cannot be evaluated drops out of both numerator and denominator rather
+than scoring zero. Scoring it zero punishes leads for work the operator has not done yet; scoring
+it 0.5 invents a measurement. Every score records how many factors were actually evaluated.
+
+### SSRF is the default assumption
+
+Every URL checked came from a scraped spreadsheet. `169.254.169.254` is cloud instance metadata;
+`127.0.0.1:5432` is your own database. The guard refuses any host resolving to a non-public
+address — *after* DNS, because a public hostname is free to point at loopback — and refuses ports
+outside `{80, 443, 8080, 8443}` on sight. It is not decorative: the first run of the website test
+suite failed ten tests because the local server had bound an ephemeral port, and the guard was
+right to refuse it.
+
+### There is deliberately no SMTP callout
+
+Port 25 is blocked from essentially every cloud provider and most ISPs; callouts get the sending
+IP blacklisted; and catch-all domains plus Gmail's accept-then-bounce make a positive result
+meaningless anyway. MX presence plus the Phase 1 classification captures most of the signal at
+none of the risk. `docs/04-verification.md` argues it properly.
+
 ### No LLM in Phase 1, on purpose
 
 Nothing here needs one. Email validation, phone parsing, deduplication and completeness scoring
@@ -147,6 +187,7 @@ leadmind/
 │   ├── core/           settings, structlog with a run_id on every record, typed errors
 │   ├── db/             engine, session, alembic migrations
 │   ├── models/         SQLAlchemy 2.0 typed models
+│   ├── verification/   SSRF-safe HTTP client, async DNS, MX and liveness checks
 │   └── ingestion/
 │       ├── readers/        sheet-aware Excel reader + per-sheet column maps
 │       ├── normalizers/    one pure function per field
@@ -183,12 +224,15 @@ leadmind/
 Requires Python 3.11+, Docker, and [uv](https://github.com/astral-sh/uv).
 
 ```bash
-make install        # venv + dependencies
-make db-up          # PostgreSQL 16 + pgvector
-make migrate        # build the schema
-make ingest-dry     # process everything, write nothing
-make ingest         # persist
-make check          # lint + type-check + full test suite
+make install          # venv + dependencies
+make db-up            # PostgreSQL 16 + pgvector
+make migrate          # build the schema
+make ingest-dry       # process everything, write nothing
+make ingest           # persist
+make verify-emails    # MX lookup per domain (cached; second run is instant)
+make verify-websites  # HTTP liveness per owned domain
+make rescore          # recompute quality scores with the new evidence
+make check            # lint + type-check + full test suite
 ```
 
 ```
@@ -202,12 +246,14 @@ validation issues by code, and the quality distribution.
 
 ### Testing
 
-123 tests. Unit tests need no database; integration tests create and migrate a dedicated
-`leadmind_test` database and run inside transactions that are rolled back.
+198 tests. Unit tests need no database; integration tests create and migrate a dedicated
+`leadmind_test` database and run inside transactions that are rolled back. Website verification is
+tested against a real local HTTP server rather than a mocked transport — actual sockets, actual
+redirects, actual timeouts — because a mock only proves the mock returns what it was told to.
 
 ```bash
-make test-unit      # ~7s, no database
-make test           # ~2min, full suite
+make test-unit      # ~8s, no database
+make test           # ~3min, full suite
 ```
 
 The test cases are drawn from the dataset, not invented: `1.4K`, `gamil.com`,
@@ -222,9 +268,11 @@ The test cases are drawn from the dataset, not invented: `1.4K`, `gamil.com`,
 - The URL normalizer parses entirely offline: `tldextract` uses its bundled public-suffix
   snapshot and makes no network call at import or at runtime. A pipeline that silently reaches
   the internet to parse a string is a pipeline that breaks in CI.
-- Phase 1 makes no outbound requests at all. When the crawler arrives in Phase 3, scraped content
-  is treated as untrusted data: SSRF protections on fetch, and strict separation of system
-  instructions from retrieved text so a page cannot rewrite the agent's policy.
+- Scraped URLs are treated as untrusted input: the SSRF guard refuses non-public addresses after
+  DNS resolution and non-web ports on sight, redirects are capped, and response bodies are size-
+  limited. Phase 3's crawler inherits the same client.
+- When retrieved page *content* arrives in Phase 3, it will be handled as data rather than
+  instruction, with strict separation of system prompt from retrieved text.
 
 ## Observability
 
@@ -240,8 +288,8 @@ produced it.
 | Phase | | |
 |---|---|---|
 | 1 | Ingestion, dedup, data quality | **done** |
-| 1b | Async MX/SMTP and website liveness checks | next |
-| 2 | FastAPI: leads, filtering, pagination, review queue | |
+| 1b | MX verification, website liveness, rubric v1.1 | **done** |
+| 2 | FastAPI: leads, filtering, pagination, review queue | next |
 | 3 | Crawler, semantic chunking, pgvector + BM25, hybrid retrieval, reranking | |
 | 4 | Grounded RAG with citations, confidence, claim↔evidence mapping | |
 | 5 | ICP · intent · pain-point engines; lead scoring; explainability | |
@@ -253,8 +301,13 @@ produced it.
 
 ### Known limitations, stated plainly
 
-- Email deliverability and website liveness are **unverified** — recorded as such rather than
-  assumed. Syntactic validity is not reachability.
+- **Website liveness has not been run against the real 1,995 domains.** Neither build sandbox has
+  outbound HTTP. The code and its tests are complete; the run is `make verify-websites` on a
+  machine with internet.
+- Verification is **domain-level, not mailbox-level.** A verified domain accepts mail; it does not
+  prove that specific address exists. See `docs/04-verification.md` §2.
+- 25 email domains came back `UNKNOWN` (resolver failures). They expire in 6 hours and retry
+  automatically.
 - Follower growth rate is computable but **disabled**, because the source has no scrape dates.
 - The 900 seeded evaluation labels are **weak supervision**, not ground truth. About 200 need
   hand-verification before any metric derived from them means anything.
@@ -270,3 +323,4 @@ produced it.
 - [`docs/01-dataset-analysis.md`](docs/01-dataset-analysis.md) — the full dataset profile
 - [`docs/02-phase1-plan.md`](docs/02-phase1-plan.md) — plan and constraints
 - [`docs/03-ingestion.md`](docs/03-ingestion.md) — how ingestion works and why
+- [`docs/04-verification.md`](docs/04-verification.md) — verification design, the SMTP decision, measured results

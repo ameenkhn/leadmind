@@ -24,7 +24,7 @@ import datetime as dt
 import statistics
 import subprocess
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from uuid import UUID
 
@@ -35,7 +35,7 @@ from app.core.errors import IngestionError
 from app.core.logging import get_logger, run_context
 from app.ingestion.dedup.cluster import CandidatePair, deduplicate
 from app.ingestion.normalizers.record import NormalizedRecord, normalize_record
-from app.ingestion.quality.rubric import get_rubric, score_lead
+from app.ingestion.quality.rubric import VerificationSignals, get_rubric, score_lead
 from app.ingestion.readers.excel import ExcelLeadReader, SourceRow
 from app.ingestion.report import IngestReport
 from app.ingestion.resolution.company import ResolvedCompany, resolve_companies
@@ -64,6 +64,7 @@ from app.models.enums import (
     LabelSource,
     MetricKind,
 )
+from app.verification.runner import lead_verification_signals
 
 logger = get_logger(__name__)
 
@@ -153,6 +154,8 @@ class _Store:
     eval_labels: dict[tuple[UUID, str, LabelSource], EvalLabel] = field(default_factory=dict)
     candidates: dict[tuple[UUID, UUID, object], DuplicateCandidate] = field(default_factory=dict)
     source_records: dict[tuple[str, str, int], LeadSourceRecord] = field(default_factory=dict)
+    signals: dict[UUID, VerificationSignals] = field(default_factory=dict)
+    """Phase 1b measurements, keyed by lead. Empty until `leadmind verify` has run."""
 
     @classmethod
     def load(cls, session: Session, source_sha256: str) -> _Store:
@@ -192,6 +195,10 @@ class _Store:
             for r in session.scalars(
                 select(LeadSourceRecord).where(LeadSourceRecord.source_sha256 == source_sha256)
             ).all()
+        }
+        store.signals = {
+            lead_id: VerificationSignals.from_mapping(payload)
+            for lead_id, payload in lead_verification_signals(session).items()
         }
         return store
 
@@ -343,7 +350,7 @@ def _sync_issues(session: Session, lead: Lead, merged: MergedLead, *, replace: b
 def _sync_quality(
     store: _Store, session: Session, lead: Lead, merged: MergedLead, now: dt.datetime
 ) -> float:
-    result = score_lead(merged, rubric=get_rubric())
+    result = score_lead(merged, rubric=get_rubric(), signals=store.signals.get(lead.id))
     existing = store.quality.get((lead.id, result.rubric_version))
     if existing is None:
         session.add(
@@ -552,6 +559,8 @@ def ingest(
 
         if dry_run:
             rubric = get_rubric()
+            # A dry run has no lead ids to key verification signals by, so those factors stay
+            # unmeasured and drop out of the denominator rather than scoring zero.
             scores = [score_lead(lead, rubric=rubric).score for lead in prepared.leads]
             logger.info("ingest_dry_run_complete", leads=len(prepared.leads))
         else:
@@ -569,6 +578,72 @@ def ingest(
     report.duration_seconds = (dt.datetime.now(dt.UTC) - started).total_seconds()
     logger.info("ingest_complete", **report.as_dict())
     return report
+
+
+@dataclass(slots=True)
+class RescoreSummary:
+    rubric_version: str
+    leads_scored: int
+    mean: float
+    median: float
+    factors_evaluated: dict[int, int]
+    """How many rubric factors could actually be measured, per lead count.
+
+    Surfaced because it is the honest caveat on the mean: a population scored on 10 of 11
+    factors is not directly comparable to one scored on 11.
+    """
+
+
+def rescore(path: Path, session: Session) -> RescoreSummary:
+    """Recompute data quality scores using whatever verification exists now.
+
+    A full re-ingest would do the same thing — it is idempotent, and it reads the same signals —
+    but this path skips every write except the scores, which is the only thing that changed.
+    """
+    prepared = prepare(path)
+    store = _Store.load(session, prepared.source_sha256)
+    rubric = get_rubric()
+    now = dt.datetime.now(dt.UTC)
+
+    updated = 0
+    scores: list[float] = []
+    evaluated: Counter[int] = Counter()
+
+    for merged in prepared.leads:
+        matched = store.match(merged)
+        if not matched:
+            continue
+        lead = matched[0]
+        result = score_lead(merged, rubric=rubric, signals=store.signals.get(lead.id))
+        existing = store.quality.get((lead.id, result.rubric_version))
+        if existing is None:
+            session.add(
+                DataQualityScore(
+                    lead_id=lead.id,
+                    score=result.score,
+                    rubric_version=result.rubric_version,
+                    factors=result.factors,
+                    computed_at=now,
+                )
+            )
+        else:
+            existing.score = result.score
+            existing.factors = result.factors
+            existing.computed_at = now
+        updated += 1
+        scores.append(result.score)
+        evaluated[result.factors_evaluated] += 1
+
+    session.flush()
+    summary = RescoreSummary(
+        rubric_version=rubric.version,
+        leads_scored=updated,
+        mean=round(statistics.mean(scores), 2) if scores else 0.0,
+        median=round(statistics.median(scores), 2) if scores else 0.0,
+        factors_evaluated=dict(sorted(evaluated.items())),
+    )
+    logger.info("rescore_complete", **asdict(summary))
+    return summary
 
 
 def leads_per_company(prepared: Prepared) -> dict[str, int]:

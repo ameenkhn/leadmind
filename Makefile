@@ -45,6 +45,22 @@ ingest: ## Ingest the source workbook
 ingest-dry: ## Process the workbook without writing anything
 	$(VENV)/bin/leadmind ingest data/raw/Outbound_Leads.xlsx --dry-run
 
+.PHONY: verify-emails
+verify-emails: ## Verify email domains accept mail (MX lookup, cached per domain)
+	$(VENV)/bin/leadmind verify emails
+
+.PHONY: verify-websites
+verify-websites: ## Check which owned websites answer (needs outbound HTTP)
+	$(VENV)/bin/leadmind verify websites
+
+.PHONY: verify-status
+verify-status: ## Show verification coverage and staleness
+	$(VENV)/bin/leadmind verify status
+
+.PHONY: rescore
+rescore: ## Recompute quality scores against the current rubric and verification data
+	$(VENV)/bin/leadmind rescore data/raw/Outbound_Leads.xlsx
+
 .PHONY: test
 test: ## Run the whole suite (needs a running database)
 	$(VENV)/bin/pytest backend/tests -q

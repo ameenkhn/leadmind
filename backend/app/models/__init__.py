@@ -23,6 +23,7 @@ from app.models.lead import (
 from app.models.provenance import IngestRun, LeadSourceRecord, ValidationIssue
 from app.models.quality import DataQualityScore, DuplicateCandidate, EvalLabel
 from app.models.taxonomy import Category, CategoryAlias, Location, LocationAlias
+from app.models.verification import DomainVerificationRecord, UrlVerificationRecord
 
 __all__ = [
     "Base",
@@ -30,6 +31,7 @@ __all__ = [
     "CategoryAlias",
     "Company",
     "DataQualityScore",
+    "DomainVerificationRecord",
     "DuplicateCandidate",
     "DuplicateMethod",
     "DuplicateStatus",
@@ -47,6 +49,7 @@ __all__ = [
     "LocationAlias",
     "MetricKind",
     "MetricObservation",
+    "UrlVerificationRecord",
     "ValidationIssue",
     "ValidationSeverity",
 ]

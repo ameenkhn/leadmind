@@ -1,4 +1,4 @@
-# Data Quality rubric v1.
+# Data Quality rubric.
 #
 # Answers one question only: *how much do we reliably know about this record?*
 # It is not a lead score and must never be used as one. A tiny local astrologer with a complete,
@@ -6,64 +6,96 @@
 # enterprise with one gmail address and nothing else scores low here and may be excellent.
 # Conflating the two is the single most common way lead-scoring systems mislead their users.
 #
-# Scoring is a weighted sum of factors, each in [0, 1], rescaled to 0-100. Every factor's
-# individual contribution is persisted alongside the score, so "why 87?" is always answerable
-# without recomputation.
+# ## Scoring
 #
-# Penalties are applied after the weighted sum and are capped, so no single defect can zero out
-# an otherwise rich record.
+# Weighted sum of factors, each in [0, 1], rescaled to 0-100, then capped penalties.
 #
-# Changing anything in this file requires bumping `version`. Scores are stored with the version
-# that produced them, so historical scores stay explicable after a rubric change.
+# A factor that could not be *evaluated* returns null and is dropped from both the numerator and
+# the denominator, rather than scoring zero or some neutral 0.5. This matters: before Phase 1b
+# verification has run, nothing is known about mailbox or website reachability, and scoring those
+# factors as zero would punish every lead for work the operator has not done yet. The count of
+# evaluated factors is persisted alongside the score, so a partially-measured 80 is visibly
+# different from a fully-measured 80.
+#
+# Every factor's value, weight, contribution and reason is persisted, so "why 87?" is always
+# answerable without recomputation.
+#
+# ## Versioning
+#
+# Changing anything here requires bumping `version`. Scores are stored with the version that
+# produced them, so a v1.0 score remains explicable after v1.1 ships and the two can be compared.
+#
+# v1.0 -> v1.1: added `mailbox_verified` and `website_live`, which consume the Phase 1b
+# measurements; other weights reduced proportionally to keep the total at 100.
 
-version: "1.0"
+version: "1.1"
 
 factors:
   identity_present:
-    weight: 10
+    weight: 8
     description: A non-placeholder name exists.
 
   contact_reachable:
-    weight: 18
+    weight: 14
     description: >
       At least one contact channel exists. Full credit needs a corporate, personally-addressed
       mailbox; a role account or a free provider is worth less because it is worth less.
 
+  mailbox_verified:
+    weight: 10
+    description: >
+      The email domain publishes an MX record, measured by DNS. Null when verification has not
+      run for that domain — unmeasured is not the same as unreachable.
+
   owned_website:
-    weight: 16
+    weight: 14
     description: >
       An owned domain, not a link-aggregator or social URL. This is the gate on the entire
       knowledge layer: no domain, nothing to crawl, nothing to cite.
 
+  website_live:
+    weight: 10
+    description: >
+      The website answers and is not a parked or placeholder page. Null when verification has
+      not run, and null when there is no owned website to check in the first place.
+
   channel_breadth:
-    weight: 12
+    weight: 10
     description: How many of website / LinkedIn / Instagram / YouTube are present, scaled 0-1.
 
   audience_evidence:
-    weight: 10
+    weight: 8
     description: >
       A parsed follower count, scored on log scale against a 100k reference. Log, not linear:
       the column spans 0 to 12,000,000 and a linear scale would make every SMB indistinguishable.
 
   location_resolved:
-    weight: 12
+    weight: 10
     description: City resolved against the gazetteer, weighted by match confidence.
 
   category_known:
-    weight: 10
+    weight: 8
     description: Source category mapped to a controlled vertical.
 
   identity_verifiable:
-    weight: 8
+    weight: 6
     description: >
       Facebook page has a vanity handle rather than a bare numeric ID. 912 rows fail this;
       a numeric-only page is typically new and harder to verify as a real business.
 
   provenance_observed:
-    weight: 4
+    weight: 2
     description: Source of the record was observed rather than inferred.
 
 penalties:
+  mailbox_domain_dead:
+    value: 15
+    description: >
+      The email domain does not exist or publishes no MX record. Mail to this lead cannot be
+      delivered, which is a measured fact rather than a suspicion.
+  website_dead:
+    value: 8
+    description: The owned website does not answer, or is a parked placeholder page.
   duplicate_email_domain_mismatch:
     value: 4
     description: Corporate email domain disagrees with the website host.
@@ -83,9 +115,11 @@ penalties:
     value: 3
     description: City value was an address fragment or not a place at all.
 
-max_total_penalty: 25
+max_total_penalty: 30
 
-# Reference points used by the scoring functions.
 parameters:
   followers_reference: 100000
   channel_kinds: [website, linkedin, instagram, youtube]
+  # Providers that indicate the business pays for managed email rather than using a free
+  # mailbox. Measured on this dataset: 906 domains, ~39% of leads.
+  managed_mail_providers: [google, microsoft, zoho, godaddy, hostinger, mimecast, proofpoint]

@@ -16,6 +16,7 @@ from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
 from app.ingestion.pipeline import ingest
+from app.ingestion.quality.rubric import get_rubric
 from app.ingestion.report import IngestReport
 from app.models import (
     Company,
@@ -221,5 +222,7 @@ class TestPersistedSemantics:
         run = session.scalar(select(IngestRun))
         assert run is not None
         assert run.status is IngestStatus.SUCCEEDED
-        assert run.rubric_version == "1.0"
+        # Compared against the loaded rubric rather than a literal, so a version bump does not
+        # break the test that exists to prove versions are recorded at all.
+        assert run.rubric_version == get_rubric().version
         assert run.stats["reconciles"] is True

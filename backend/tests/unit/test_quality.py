@@ -8,15 +8,16 @@ from __future__ import annotations
 
 import pytest
 
-from app.ingestion.quality.rubric import get_rubric, score_lead
+from app.ingestion.quality.rubric import VerificationSignals, get_rubric, score_lead
 from app.ingestion.validators.rules import CONTACT_KINDS
 from app.models.enums import IdentifierKind
+from app.verification.types import VerificationStatus
 
 
 class TestRubricConfig:
     def test_rubric_loads_and_is_versioned(self) -> None:
         rubric = get_rubric()
-        assert rubric.version == "1.0"
+        assert rubric.version == "1.1"
         assert rubric.total_weight == pytest.approx(100.0)
 
     def test_penalties_are_capped(self) -> None:
@@ -38,16 +39,22 @@ class TestScoring:
         assert set(factors) == set(rubric.weights)
         for detail in factors.values():
             assert detail["reason"]
-            assert 0 <= detail["value"] <= 1
+            if detail["measured"]:
+                assert 0 <= detail["value"] <= 1
+            else:
+                # An unmeasured factor still has to say why it could not be measured.
+                assert detail["value"] is None
 
     def test_contributions_sum_to_the_base_score(self, prepared) -> None:  # type: ignore[no-untyped-def]
-        rubric = get_rubric()
+        """The denominator is the weight actually evaluated, not the rubric total.
+
+        This is what makes an unmeasured factor neutral rather than a penalty.
+        """
         for lead in prepared.leads[:200]:
             result = score_lead(lead)
             earned = sum(d["contribution"] for d in result.factors["factors"].values())
-            assert result.factors["base_score"] == pytest.approx(
-                earned / rubric.total_weight * 100, abs=0.05
-            )
+            available = result.factors["weight_available"]
+            assert result.factors["base_score"] == pytest.approx(earned / available * 100, abs=0.05)
 
     def test_scoring_is_deterministic(self, prepared) -> None:  # type: ignore[no-untyped-def]
         for lead in prepared.leads[:100]:
@@ -84,6 +91,75 @@ class TestScoring:
         big_audience = [lead for lead in prepared.leads if (lead.latest_followers or 0) > 50_000]
         scores = [score_lead(lead).score for lead in big_audience]
         assert min(scores) < 70 < max(scores)
+
+
+class TestUnmeasuredFactors:
+    """Phase 1b added factors that cannot be scored until verification has run."""
+
+    def test_unverified_factors_drop_out_rather_than_scoring_zero(self, prepared) -> None:  # type: ignore[no-untyped-def]
+        """Otherwise every lead is punished for work the operator has not done yet."""
+        lead = next(entry for entry in prepared.leads if entry.company_domain)
+        result = score_lead(lead)
+        factors = result.factors["factors"]
+        assert factors["mailbox_verified"]["measured"] is False
+        assert factors["website_live"]["measured"] is False
+        assert result.factors["weight_available"] < get_rubric().total_weight
+        assert result.factors["factors_evaluated"] == result.factors["factors_total"] - 2
+
+    def test_verified_mailbox_raises_the_score(self, prepared) -> None:  # type: ignore[no-untyped-def]
+        lead = next(entry for entry in prepared.leads if entry.company_domain)
+        unmeasured = score_lead(lead)
+        verified = score_lead(
+            lead,
+            signals=VerificationSignals(
+                mailbox_domain_status=VerificationStatus.VERIFIED,
+                mailbox_accepts_mail=True,
+                mail_provider="google",
+            ),
+        )
+        assert verified.score > unmeasured.score
+        assert verified.factors["factors"]["mailbox_verified"]["value"] == 1.0
+
+    def test_dead_mailbox_domain_lowers_the_score_and_names_the_reason(self, prepared) -> None:  # type: ignore[no-untyped-def]
+        lead = next(entry for entry in prepared.leads if entry.company_domain)
+        dead = score_lead(
+            lead,
+            signals=VerificationSignals(
+                mailbox_domain_status=VerificationStatus.UNREACHABLE,
+                mailbox_accepts_mail=False,
+            ),
+        )
+        assert dead.score < score_lead(lead).score
+        assert "mailbox_domain_dead" in dead.factors["penalties"]
+
+    def test_resolver_failure_is_treated_as_unmeasured_not_as_a_dead_domain(self, prepared) -> None:  # type: ignore[no-untyped-def]
+        """The distinction the whole verification layer exists to preserve."""
+        lead = next(entry for entry in prepared.leads if entry.company_domain)
+        baseline = score_lead(lead)
+        blip = score_lead(
+            lead, signals=VerificationSignals(mailbox_domain_status=VerificationStatus.UNKNOWN)
+        )
+        assert blip.score == baseline.score
+        assert "mailbox_domain_dead" not in blip.factors["penalties"]
+
+    def test_parked_website_is_penalised(self, prepared) -> None:  # type: ignore[no-untyped-def]
+        lead = next(entry for entry in prepared.leads if entry.company_domain)
+        parked = score_lead(
+            lead,
+            signals=VerificationSignals(
+                website_status=VerificationStatus.VERIFIED,
+                website_is_live=False,
+                website_is_parked=True,
+            ),
+        )
+        assert "website_dead" in parked.factors["penalties"]
+
+    def test_a_lead_with_no_website_is_not_marked_down_for_liveness(self, prepared) -> None:  # type: ignore[no-untyped-def]
+        lead = next(entry for entry in prepared.leads if not entry.company_domain)
+        result = score_lead(lead)
+        detail = result.factors["factors"]["website_live"]
+        assert detail["measured"] is False
+        assert "no owned website" in detail["reason"]
 
 
 class TestSeparationOfConcerns:
