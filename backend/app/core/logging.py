@@ -28,9 +28,11 @@ def configure_logging(*, force: bool = False) -> None:
         return
 
     settings = get_settings()
+    # Logs go to stderr so stdout stays a clean channel for machine-readable CLI output
+    # (`leadmind ingest --json | jq`). Mixing the two is how a pipeline breaks a shell script.
     logging.basicConfig(
         format="%(message)s",
-        stream=sys.stdout,
+        stream=sys.stderr,
         level=getattr(logging, settings.log_level, logging.INFO),
         force=True,
     )

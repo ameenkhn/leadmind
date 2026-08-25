@@ -119,9 +119,7 @@ def build_clusters(records: list[NormalizedRecord]) -> list[Cluster]:
                 for node in members
                 if not node.startswith("row:") and node in methods_by_key
             }
-        clusters.append(
-            Cluster(key=str(root), record_indexes=row_indexes, matched_by=matched)
-        )
+        clusters.append(Cluster(key=str(root), record_indexes=row_indexes, matched_by=matched))
 
     clusters.sort(key=lambda c: c.record_indexes[0])
     return clusters
@@ -135,9 +133,7 @@ def find_candidates(
 ) -> list[CandidatePair]:
     """Find pairs of *distinct* clusters that resemble each other, for human review."""
     threshold = (
-        fuzzy_threshold
-        if fuzzy_threshold is not None
-        else get_settings().fuzzy_name_threshold
+        fuzzy_threshold if fuzzy_threshold is not None else get_settings().fuzzy_name_threshold
     )
     cluster_of: dict[int, int] = {}
     for cluster_index, cluster in enumerate(clusters):
@@ -145,8 +141,7 @@ def find_candidates(
             cluster_of[record_index] = cluster_index
 
     representative: dict[int, int] = {
-        cluster_index: cluster.record_indexes[0]
-        for cluster_index, cluster in enumerate(clusters)
+        cluster_index: cluster.record_indexes[0] for cluster_index, cluster in enumerate(clusters)
     }
 
     candidates: list[CandidatePair] = []

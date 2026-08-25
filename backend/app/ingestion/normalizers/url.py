@@ -114,7 +114,9 @@ _NUMERIC_HANDLE_RE: Final = re.compile(r"^\d{8,}$")
 
 def registrable_domain(host: str) -> str:
     parts = _extract(host)
-    return parts.registered_domain or host
+    # `top_domain_under_public_suffix` replaced `registered_domain` in tldextract 5.x; both mean
+    # "the domain someone can register", e.g. co.uk yields example.co.uk rather than co.uk.
+    return parts.top_domain_under_public_suffix or host
 
 
 def _canonical_host(netloc: str) -> str:

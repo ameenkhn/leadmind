@@ -111,9 +111,7 @@ def merge_cluster(cluster: Cluster, records: list[NormalizedRecord]) -> MergedLe
     location_source = max(located, key=lambda r: r.location.confidence) if located else None
 
     categorised = [r for r in members if r.category.value and r.category.value != UNCLASSIFIED]
-    category_source = (
-        max(categorised, key=lambda r: r.category.confidence) if categorised else None
-    )
+    category_source = max(categorised, key=lambda r: r.category.confidence) if categorised else None
 
     identifiers = _merge_identifiers(members)
     follower_observations = [

@@ -40,8 +40,9 @@ def _shared_prefix(names: list[str]) -> str | None:
     """Longest common leading word sequence, used to name a multi-branch company.
 
     ``Pumo Technovation Kanchipuram`` + ``Pumo Technovation Tirupati`` yields
-    ``Pumo Technovation``. When branches share nothing, the company stays unnamed rather than
-    inheriting one arbitrary branch's name.
+    ``Pumo Technovation``. When branches share no prefix — and they often do not, because one
+    branch writes ``Pumotechnovation`` as a single word — the caller falls back to the domain
+    rather than inheriting one arbitrary branch's name.
     """
     if not names:
         return None
@@ -56,6 +57,17 @@ def _shared_prefix(names: list[str]) -> str | None:
     return " ".join(prefix) if prefix else None
 
 
+def _name_from_domain(domain: str) -> str:
+    """Derive a company label from its own domain.
+
+    Used only when multiple branches share a domain but no common name prefix. This is a
+    derivation from data the company itself published, not an invented name, and it beats
+    picking one branch's name and presenting it as the parent's.
+    """
+    label = domain.split(".")[0].replace("-", " ").strip()
+    return label.title() if label else domain
+
+
 def resolve_companies(leads: list[MergedLead]) -> list[ResolvedCompany]:
     """Group leads by owned domain into companies."""
     by_domain: dict[str, list[int]] = defaultdict(list)
@@ -66,7 +78,7 @@ def resolve_companies(leads: list[MergedLead]) -> list[ResolvedCompany]:
     companies: list[ResolvedCompany] = []
     for domain, lead_indexes in sorted(by_domain.items()):
         names = [leads[i].display_name for i in lead_indexes]
-        name = names[0] if len(names) == 1 else _shared_prefix(names)
+        name = names[0] if len(names) == 1 else _shared_prefix(names) or _name_from_domain(domain)
         website = next(
             (
                 identifier.value

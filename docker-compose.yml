@@ -1,0 +1,30 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: leadmind-db
+    environment:
+      POSTGRES_USER: leadmind
+      POSTGRES_PASSWORD: leadmind
+      POSTGRES_DB: leadmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - leadmind-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadmind -d leadmind"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    command:
+      # This dataset is small enough to live in memory; these settings keep the ingest and the
+      # Phase 3 vector index build from spilling to disk on a laptop.
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=256MB
+
+volumes:
+  leadmind-pgdata:
