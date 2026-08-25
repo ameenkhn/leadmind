@@ -1,0 +1,31 @@
+# Provenance for each source sheet.
+#
+# The workbook records no scrape dates. `observed_at` is therefore null for every sheet, and the
+# ingest pipeline falls back to the ingest timestamp with `observed_at_is_inferred = true` on
+# every metric observation it writes.
+#
+# This matters more than it looks. Follower counts disagree between Day_1 and Day_3 for 38% of
+# the 169 duplicate leads, which is real growth data — but a growth *rate* needs an elapsed time,
+# and inventing one would produce a plausible-looking number with no basis. So the observations
+# are stored, the growth feature stays disabled, and it switches on the moment real dates are
+# filled in below.
+
+version: "1.0"
+
+sheets:
+  Day_1:
+    sequence: 1
+    source: Meta Ad Library
+    source_is_inferred: false
+    observed_at: null   # e.g. 2026-08-18T00:00:00Z
+  Day_2:
+    sequence: 2
+    source: Meta Ad Library
+    source_is_inferred: false
+    observed_at: null
+  Day_3:
+    sequence: 3
+    # Day_3 has no Source column. Filled in from the other two sheets and flagged as inferred.
+    source: Meta Ad Library
+    source_is_inferred: true
+    observed_at: null

@@ -1,0 +1,359 @@
+# Controlled vertical taxonomy.
+#
+# The source carries two incompatible category systems:
+#   * `FB_Category` — Facebook's own taxonomy, 275 distinct values across the three sheets,
+#     long-tailed (161 of them appear once or twice) and inconsistent in granularity
+#     ("Education" sits beside "Paediatric dentist").
+#   * `Day_1.Niche` — five curated verticals, present on 900 rows only.
+#
+# Neither is usable as a feature directly: a one-hot over 275 sparse labels is noise, and the
+# curated column covers 36% of the file. This map collapses both into 15 verticals that are
+# stable enough to score against and specific enough to matter for an ICP.
+#
+# Unmapped values resolve to `unclassified` rather than being guessed at. `unclassified` is a
+# legitimate outcome that lowers data-quality confidence; it is not a silent default.
+
+version: "1.0"
+
+verticals:
+  - slug: education_training
+    label: Education & Training
+  - slug: health_medical
+    label: Health & Medical
+  - slug: wellness_fitness
+    label: Wellness & Fitness
+  - slug: coaching_development
+    label: Coaching & Personal Development
+  - slug: astrology_spiritual
+    label: Astrology & Spiritual
+  - slug: finance_insurance
+    label: Finance & Insurance
+  - slug: beauty_personal_care
+    label: Beauty & Personal Care
+  - slug: professional_services
+    label: Professional Services
+  - slug: technology
+    label: Technology
+  - slug: real_estate
+    label: Real Estate
+  - slug: retail_ecommerce
+    label: Retail & E-commerce
+  - slug: media_creator
+    label: Media & Creators
+  - slug: hospitality_travel
+    label: Hospitality & Travel
+  - slug: nonprofit_community
+    label: Non-profit & Community
+  - slug: unclassified
+    label: Unclassified
+
+aliases:
+  education_training:
+    - Education
+    - Educational consultant
+    - Education website
+    - Educational research centre
+    - Education and learning
+    - Education company
+    - Higher education
+    - University
+    - School
+    - Primary school
+    - Middle school
+    - Private school
+    - Vocational school
+    - Computer training school
+    - Aviation school
+    - Language school
+    - Cosmetology school
+    - Medical school
+    - Nursing school
+    - Cooking school
+    - Music school
+    - Art school
+    - Massage school
+    - Martial arts school
+    - Dance school
+    - Tutor/Teacher
+    - Test preparation centre
+    - Academic department
+    - Campus building
+    - Educational supply shop
+    - Library
+
+  health_medical:
+    - Medical & health
+    - Health & medical
+    - Hospital
+    - Doctor
+    - Physiotherapist
+    - Dermatologist
+    - Dentist and dental surgery
+    - Dental clinic
+    - General dentist
+    - Cosmetic dentist
+    - Paediatric dentist
+    - Medical centre
+    - Medical clinic
+    - Medical lab
+    - Diagnostics centre
+    - Medical equipment supplier
+    - Medical equipment manufacturer
+    - Medical supply shop
+    - Medical company
+    - Pharmaceutical company
+    - Pharmaceuticals
+    - Fertility doctor
+    - Fertility clinic
+    - Women's health clinic
+    - Obstetrician-gynaecologist
+    - Orthopaedist
+    - Cardiologist
+    - Oncologist
+    - Urologist
+    - Plastic surgeon
+    - Surgical centre
+    - LASIK/Laser eye surgeon
+    - Eye care centre
+    - Chiropractor
+    - Speech therapist
+    - Occupational therapist
+    - Psychologist
+    - Therapist
+    - Counsellor
+    - Mental health service
+    - Rehabilitation centre
+    - Home healthcare service
+    - Nursing agency
+    - Nursing home
+    - Retirement and assisted living facility
+    - Pregnancy care centre
+    - Reproductive service
+    - Childcare service
+    - Veterinarian
+    - Disease Reversal
+
+  wellness_fitness:
+    - Health & wellness website
+    - Wellness centre
+    - Alternative & holistic health service
+    - Naturopath
+    - Yoga studio
+    - Pilates studio
+    - Meditation centre
+    - Gym/Physical fitness centre
+    - Gymnastics centre
+    - Fitness trainer
+    - Fitness model
+    - Sport & fitness instruction
+    - Sport and recreation
+    - Sports
+    - Sports club
+    - Sportsperson
+    - Sporting goods shop
+    - Exercise equipment store
+    - Dance studio
+    - Nutritionist
+    - Dietician
+    - Weight loss centre
+    - Health food shop
+    - Health food restaurant
+    - Organic food shop
+    - Vitamins/supplements
+    - Aromatherapy service
+    - Health spa
+    - Spa
+    - Golf course & country club
+    - Health & Wellness
+
+  coaching_development:
+    - Coach
+    - Personal coach
+    - Motivational speaker
+    - Career counsellor
+    - Entrepreneur
+    - Public figure
+    - Children and parenting
+    - Life Coaching
+
+  astrology_spiritual:
+    - Astrologist
+    - Astrologist and psychic
+    - Religious organisation
+    - Religion & spirituality
+    - Hindu temple
+    - Occult Healing
+
+  finance_insurance:
+    - Financial service
+    - Financial consultant
+    - Financial planner
+    - Financial aid service
+    - Investing service
+    - Investment management company
+    - Accounting service
+    - Tax preparation service
+    - Loan service
+    - Credit counselling service
+    - Insurance agent
+    - Insurance company
+    - Insurance broker
+    - Finance
+
+  beauty_personal_care:
+    - Health/beauty
+    - Beauty, cosmetic & personal care
+    - Beauty salon
+    - Hair salon
+    - Hair extensions service
+    - Hair replacement service
+    - Skincare service
+    - Make-up artist
+    - Modelling agency
+    - Fashion model
+
+  professional_services:
+    - Business consultant
+    - Consulting agency
+    - Business service
+    - Business centre
+    - Business
+    - Management service
+    - Advertising/marketing
+    - Advertising agency
+    - Marketing agency
+    - Media agency
+    - Social media agency
+    - Internet marketing service
+    - Employment agency
+    - Recruiter
+    - Jobs and occupations
+    - Legal service
+    - Environmental consultant
+    - Engineering service
+    - Architectural designer
+    - Interior design studio
+    - Designer
+    - Franchising service
+    - Signs & banner service
+    - Event planner
+    - Party and entertainment service
+    - Wedding planning service
+    - Construction company
+    - Commercial and industrial equipment supplier
+    - Manufacturer/Supplier
+    - Agricultural service
+    - Solar energy company
+    - Solar energy service
+    - Energy company
+    - Coworking space
+
+  technology:
+    - Information technology company
+    - Software
+    - Software company
+    - Computer company
+    - Computer repair service
+    - Internet company
+    - App Page
+    - Science, technology and engineering
+    - Electronics company
+    - Telecommunication company
+    - Aerospace company
+
+  real_estate:
+    - Property
+    - Property service
+    - Property company
+    - Property management company
+    - Property developer
+    - Property investment company
+    - Estate agent
+
+  retail_ecommerce:
+    - E-commerce website
+    - Shopping & retail
+    - Shopping centre
+    - Shopping service
+    - Wholesale and supply shop
+    - Electronics shop
+    - Jewellery wholesaler
+    - Jewellery/watches
+    - Jewellery & watches shop
+    - Arts and crafts shop
+    - Women's clothes shop
+    - Clothing (brand)
+    - Boutique
+    - Book shop
+    - Gift shop
+    - Home decor
+    - Baby goods/children's goods
+    - Pet supplies
+    - Pet service
+    - Specialist food shop
+    - Fruit and vegetable shop
+    - Food wholesaler
+    - Dairy farm
+    - Farm
+    - Bottled water company
+    - Dessert shop
+    - Car dealership
+    - Vehicle body shop
+    - Car wash
+    - Oil lube and filter service
+    - Nursery and garden centre
+    - Patio/Garden
+
+  media_creator:
+    - Digital creator
+    - Reel creator
+    - Personal blog
+    - Blogger
+    - Podcast
+    - Magazine
+    - Publisher
+    - Media
+    - Media/news company
+    - News & media website
+    - Broadcasting & media production company
+    - Entertainment website
+    - Arts & entertainment
+    - Artist
+    - Art
+    - Business and economy website
+
+  hospitality_travel:
+    - Travel company
+    - Travel agent
+    - Travel service
+    - Tour agent
+    - Tour guide
+    - Eco tour agency
+    - Local & travel website
+    - Hotel resort
+    - Hospitality service
+    - Amusement and theme park
+    - Fast food restaurant
+    - Vegetarian/Vegan restaurant
+    - Food delivery service
+    - Food and drink
+
+  nonprofit_community:
+    - Non-governmental organisation (NGO)
+    - Non-profit organisation
+    - Community
+    - Community organisation
+    - Community centre
+    - Organisation/institution type
+    - Cause
+    - Event
+
+  unclassified:
+    - Product/service
+    - Local business
+    - Local service
+    - Brand
+    - Company
+    - Website
+    - Interest
+    - Other

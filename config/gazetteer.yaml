@@ -1,0 +1,418 @@
+# City gazetteer for location resolution.
+#
+# The source `City` column holds 417 distinct values across 1,917 non-null rows, 259 of which
+# appear exactly once. It was clearly sliced out of a free-text postal address, so alongside real
+# cities it contains address fragments ("Nagar" x24, "Road" x9, "Colony" x7, "Vihar", "Marg",
+# "Block", "Floor", "Enclave") and outright non-places ("PNB", "Dental Hospital", "Diagnostics",
+# "Farm", "quality", "today").
+#
+# Resolution policy:
+#   exact city match      -> confidence 1.00
+#   alias match           -> confidence 0.90
+#   state / region match  -> confidence 0.50, coarse granularity only
+#   address fragment      -> unresolved, confidence 0.00, validation issue raised
+#   anything else         -> unresolved, confidence 0.00, kept verbatim in leads.location_raw
+#
+# Unresolved is a first-class outcome. Guessing a city from a fragment would manufacture
+# geographic precision the source data does not have.
+
+version: "1.0"
+country_code: IN
+
+cities:
+  - {name: Mumbai, state: Maharashtra, aliases: [Bombay, Greater Mumbai]}
+  - {name: Delhi, state: Delhi, aliases: [New Delhi, Delhi NCR, NCR]}
+  - {name: Bangalore, state: Karnataka, aliases: [Bengaluru, Bangaluru]}
+  - {name: Hyderabad, state: Telangana, aliases: [Secunderabad]}
+  - {name: Pune, state: Maharashtra, aliases: [Poona]}
+  - {name: Kolkata, state: West Bengal, aliases: [Calcutta]}
+  - {name: Chennai, state: Tamil Nadu, aliases: [Madras]}
+  - {name: Noida, state: Uttar Pradesh, aliases: [Greater Noida]}
+  - {name: Ahmedabad, state: Gujarat, aliases: [Amdavad]}
+  - {name: Gurugram, state: Haryana, aliases: [Gurgaon]}
+  - {name: Jaipur, state: Rajasthan, aliases: []}
+  - {name: Chandigarh, state: Chandigarh, aliases: []}
+  - {name: Kochi, state: Kerala, aliases: [Cochin, Ernakulam, Eranakulam, Kakkanad, Kakkanadu, Vyttila, Elamakkara]}
+  - {name: Faridabad, state: Haryana, aliases: []}
+  - {name: Coimbatore, state: Tamil Nadu, aliases: []}
+  - {name: Lucknow, state: Uttar Pradesh, aliases: [Jankipuram]}
+  - {name: Surat, state: Gujarat, aliases: [Katargam]}
+  - {name: Rishikesh, state: Uttarakhand, aliases: [Hrishikesh]}
+  - {name: Nagpur, state: Maharashtra, aliases: []}
+  - {name: Ghaziabad, state: Uttar Pradesh, aliases: [Sahibabad]}
+  - {name: Patna, state: Bihar, aliases: []}
+  - {name: Thane, state: Maharashtra, aliases: [Thakurli]}
+  - {name: Bhubaneswar, state: Odisha, aliases: []}
+  - {name: Mohali, state: Punjab, aliases: [SAS Nagar]}
+  - {name: Bhopal, state: Madhya Pradesh, aliases: []}
+  - {name: Varanasi, state: Uttar Pradesh, aliases: [Banaras, Kashi]}
+  - {name: Nashik, state: Maharashtra, aliases: [Nasik]}
+  - {name: Jodhpur, state: Rajasthan, aliases: []}
+  - {name: Ludhiana, state: Punjab, aliases: []}
+  - {name: Dehradun, state: Uttarakhand, aliases: [Dehra Dun, Dun]}
+  - {name: Gandhinagar, state: Gujarat, aliases: []}
+  - {name: Howrah, state: West Bengal, aliases: []}
+  - {name: Agra, state: Uttar Pradesh, aliases: []}
+  - {name: Thrissur, state: Kerala, aliases: [Trichur]}
+  - {name: Guwahati, state: Assam, aliases: [Gauhati, Kamakhya]}
+  - {name: Ambala, state: Haryana, aliases: []}
+  - {name: Kollam, state: Kerala, aliases: [Quilon]}
+  - {name: Mysuru, state: Karnataka, aliases: [Mysore]}
+  - {name: Indore, state: Madhya Pradesh, aliases: [Palasia]}
+  - {name: Kanpur, state: Uttar Pradesh, aliases: []}
+  - {name: Hisar, state: Haryana, aliases: []}
+  - {name: Udaipur, state: Rajasthan, aliases: []}
+  - {name: Visakhapatnam, state: Andhra Pradesh, aliases: [Vizag]}
+  - {name: Haridwar, state: Uttarakhand, aliases: [Hardwar]}
+  - {name: Jalandhar, state: Punjab, aliases: []}
+  - {name: Vadodara, state: Gujarat, aliases: [Baroda, Vadaj]}
+  - {name: Kozhikode, state: Kerala, aliases: [Calicut, Pantheeramkavu]}
+  - {name: Erode, state: Tamil Nadu, aliases: []}
+  - {name: Dindigul, state: Tamil Nadu, aliases: []}
+  - {name: Ranchi, state: Jharkhand, aliases: []}
+  - {name: Gorakhpur, state: Uttar Pradesh, aliases: []}
+  - {name: Mathura, state: Uttar Pradesh, aliases: []}
+  - {name: Karnal, state: Haryana, aliases: []}
+  - {name: Madurai, state: Tamil Nadu, aliases: []}
+  - {name: Imphal, state: Manipur, aliases: []}
+  - {name: Gandhidham, state: Gujarat, aliases: []}
+  - {name: Sonipat, state: Haryana, aliases: [Sonepat]}
+  - {name: Kalyan, state: Maharashtra, aliases: []}
+  - {name: Raipur, state: Chhattisgarh, aliases: []}
+  - {name: Kakdwip, state: West Bengal, aliases: []}
+  - {name: Mangaluru, state: Karnataka, aliases: [Mangalore]}
+  - {name: Kayamkulam, state: Kerala, aliases: []}
+  - {name: Rajkot, state: Gujarat, aliases: []}
+  - {name: Hubballi, state: Karnataka, aliases: [Hubli]}
+  - {name: Kottayam, state: Kerala, aliases: []}
+  - {name: Manjeri, state: Kerala, aliases: []}
+  - {name: Kottakkal, state: Kerala, aliases: []}
+  - {name: Thiruvananthapuram, state: Kerala, aliases: [Trivandrum, Attingal]}
+  - {name: Mapusa, state: Goa, aliases: [Mapuca]}
+  - {name: Puducherry, state: Puducherry, aliases: [Pondicherry]}
+  - {name: Bilaspur, state: Chhattisgarh, aliases: []}
+  - {name: Mahad, state: Maharashtra, aliases: []}
+  - {name: Muvattupuzha, state: Kerala, aliases: []}
+  - {name: Kanchipuram, state: Tamil Nadu, aliases: []}
+  - {name: Mehsana, state: Gujarat, aliases: []}
+  - {name: Rourkela, state: Odisha, aliases: []}
+  - {name: Phagwara, state: Punjab, aliases: []}
+  - {name: Unnao, state: Uttar Pradesh, aliases: []}
+  - {name: Kannur, state: Kerala, aliases: [Cannanore]}
+  - {name: Prayagraj, state: Uttar Pradesh, aliases: [Allahabad]}
+  - {name: Pimpri-Chinchwad, state: Maharashtra, aliases: [Pimpri, Chinchwad, Kalewadi, Tathawade]}
+  - {name: Tirupati, state: Andhra Pradesh, aliases: []}
+  - {name: Bhavnagar, state: Gujarat, aliases: []}
+  - {name: Bhilai, state: Chhattisgarh, aliases: []}
+  - {name: Patan, state: Gujarat, aliases: []}
+  - {name: Bareilly, state: Uttar Pradesh, aliases: []}
+  - {name: Perintalmanna, state: Kerala, aliases: []}
+  - {name: Fatehabad, state: Haryana, aliases: []}
+  - {name: Barmer, state: Rajasthan, aliases: []}
+  - {name: Malappuram, state: Kerala, aliases: [Vengara]}
+  - {name: Hoshiarpur, state: Punjab, aliases: []}
+  - {name: Vasai, state: Maharashtra, aliases: [Vasai-Virar]}
+  - {name: Jamnagar, state: Gujarat, aliases: []}
+  - {name: Guduvancheri, state: Tamil Nadu, aliases: []}
+  - {name: Tiruchirappalli, state: Tamil Nadu, aliases: [Trichy]}
+  - {name: Jhansi, state: Uttar Pradesh, aliases: []}
+  - {name: Anantapur, state: Andhra Pradesh, aliases: []}
+  - {name: Purulia, state: West Bengal, aliases: []}
+  - {name: Bharatpur, state: Rajasthan, aliases: []}
+  - {name: Cuttack, state: Odisha, aliases: []}
+  - {name: Muzaffarnagar, state: Uttar Pradesh, aliases: []}
+  - {name: Amravati, state: Maharashtra, aliases: []}
+  - {name: Ajmer, state: Rajasthan, aliases: []}
+  - {name: Tiruvannamalai, state: Tamil Nadu, aliases: []}
+  - {name: Jhunjhunu, state: Rajasthan, aliases: [Jhunjhunun]}
+  - {name: Bidar, state: Karnataka, aliases: []}
+  - {name: Amritsar, state: Punjab, aliases: []}
+  - {name: Jamkhed, state: Maharashtra, aliases: []}
+  - {name: Nadiad, state: Gujarat, aliases: []}
+  - {name: Ayodhya, state: Uttar Pradesh, aliases: [Faizabad]}
+  - {name: Jammu, state: Jammu and Kashmir, aliases: [Bishnah]}
+  - {name: Hosapete, state: Karnataka, aliases: [Hospet]}
+  - {name: Raebareli, state: Uttar Pradesh, aliases: []}
+  - {name: Handwara, state: Jammu and Kashmir, aliases: []}
+  - {name: Panipat, state: Haryana, aliases: []}
+  - {name: Ambur, state: Tamil Nadu, aliases: []}
+  - {name: Hojai, state: Assam, aliases: []}
+  - {name: Gwalior, state: Madhya Pradesh, aliases: [Thatipur]}
+  - {name: Aluva, state: Kerala, aliases: [Alwaye]}
+  - {name: Purnia, state: Bihar, aliases: [Purnea]}
+  - {name: Latur, state: Maharashtra, aliases: []}
+  - {name: Manipal, state: Karnataka, aliases: []}
+  - {name: Thiruvalla, state: Kerala, aliases: []}
+  - {name: Alappuzha, state: Kerala, aliases: [Alleppey]}
+  - {name: Dimapur, state: Nagaland, aliases: []}
+  - {name: Kasaragod, state: Kerala, aliases: []}
+  - {name: Nakodar, state: Punjab, aliases: []}
+  - {name: Dhanbad, state: Jharkhand, aliases: []}
+  - {name: Saharanpur, state: Uttar Pradesh, aliases: []}
+  - {name: Arambol, state: Goa, aliases: [Anjuna, Porvorim, Panjim, Chorao]}
+  - {name: Maheshtala, state: West Bengal, aliases: []}
+  - {name: Ujjain, state: Madhya Pradesh, aliases: []}
+  - {name: Raxaul, state: Bihar, aliases: []}
+  - {name: Bhilwara, state: Rajasthan, aliases: []}
+  - {name: Asansol, state: West Bengal, aliases: []}
+  - {name: Ratia, state: Haryana, aliases: []}
+  - {name: Longowal, state: Punjab, aliases: []}
+  - {name: Munnar, state: Kerala, aliases: []}
+  - {name: Hassan, state: Karnataka, aliases: []}
+  - {name: Bhagalpur, state: Bihar, aliases: []}
+  - {name: Namchi, state: Sikkim, aliases: []}
+  - {name: Kolhapur, state: Maharashtra, aliases: [Ichalkaranji]}
+  - {name: Darjeeling, state: West Bengal, aliases: []}
+  - {name: Bathinda, state: Punjab, aliases: []}
+  - {name: Banswara, state: Rajasthan, aliases: []}
+  - {name: Kangra, state: Himachal Pradesh, aliases: [Palampur, Dharamsala, Dharamshala]}
+  - {name: Agartala, state: Tripura, aliases: [Dharmanagar]}
+  - {name: Chintamani, state: Karnataka, aliases: []}
+  - {name: Panvel, state: Maharashtra, aliases: []}
+  - {name: Tirupur, state: Tamil Nadu, aliases: []}
+  - {name: Kharghar, state: Maharashtra, aliases: []}
+  - {name: Pathankot, state: Punjab, aliases: []}
+  - {name: Muktsar, state: Punjab, aliases: []}
+  - {name: Sirsa, state: Haryana, aliases: [Kanina]}
+  - {name: Hosur, state: Tamil Nadu, aliases: []}
+  - {name: Tiruvallur, state: Tamil Nadu, aliases: [Poonamallee, Triplicane, Velacheri]}
+  - {name: Vijayawada, state: Andhra Pradesh, aliases: [Ramanapeta]}
+  - {name: Mananthavady, state: Kerala, aliases: [Kalpetta]}
+  - {name: Sangrur, state: Punjab, aliases: []}
+  - {name: Arwal, state: Bihar, aliases: []}
+  - {name: Madhyamgram, state: West Bengal, aliases: [Barasat, Dumdum, Dum Dum, Rahara, Narendrapur, Burdwan, Malda, Canning]}
+  - {name: Kolar, state: Karnataka, aliases: []}
+  - {name: Amroha, state: Uttar Pradesh, aliases: []}
+  - {name: Kalimpong, state: West Bengal, aliases: []}
+  - {name: Aligarh, state: Uttar Pradesh, aliases: []}
+  - {name: Yamunanagar, state: Haryana, aliases: []}
+  - {name: Aurangabad, state: Maharashtra, aliases: [Sambhajinagar, Chikalthana]}
+  - {name: Nagapattinam, state: Tamil Nadu, aliases: []}
+  - {name: Baramati, state: Maharashtra, aliases: []}
+  - {name: Bhiwadi, state: Rajasthan, aliases: []}
+  - {name: Mahabalipuram, state: Tamil Nadu, aliases: []}
+  - {name: Malegaon, state: Maharashtra, aliases: []}
+  - {name: Moga, state: Punjab, aliases: []}
+  - {name: Jabalpur, state: Madhya Pradesh, aliases: []}
+  - {name: Kota, state: Rajasthan, aliases: []}
+  - {name: Jalpaiguri, state: West Bengal, aliases: [Jhantipahari]}
+  - {name: Nalgonda, state: Telangana, aliases: []}
+  - {name: Theni, state: Tamil Nadu, aliases: []}
+  - {name: Kharar, state: Punjab, aliases: []}
+  - {name: Bhuj, state: Gujarat, aliases: []}
+  - {name: Himatnagar, state: Gujarat, aliases: []}
+  - {name: Kagal, state: Maharashtra, aliases: []}
+  - {name: Nagercoil, state: Tamil Nadu, aliases: []}
+  - {name: Patiala, state: Punjab, aliases: []}
+  - {name: Kaithal, state: Haryana, aliases: []}
+  - {name: Chidambaram, state: Tamil Nadu, aliases: []}
+  - {name: Chamoli, state: Uttarakhand, aliases: []}
+  - {name: Coonoor, state: Tamil Nadu, aliases: [Naduvattam]}
+  - {name: Junagadh, state: Gujarat, aliases: []}
+  - {name: Chikkamagaluru, state: Karnataka, aliases: [Chikmagalur]}
+  - {name: Sohna, state: Haryana, aliases: []}
+  - {name: Islampur, state: West Bengal, aliases: []}
+  - {name: Chhindwara, state: Madhya Pradesh, aliases: []}
+  - {name: Siliguri, state: West Bengal, aliases: []}
+  - {name: Meerut, state: Uttar Pradesh, aliases: []}
+  - {name: Srinagar, state: Jammu and Kashmir, aliases: []}
+  - {name: Shimla, state: Himachal Pradesh, aliases: []}
+  - {name: Salem, state: Tamil Nadu, aliases: []}
+  - {name: Warangal, state: Telangana, aliases: []}
+  - {name: Guntur, state: Andhra Pradesh, aliases: []}
+  - {name: Belagavi, state: Karnataka, aliases: [Belgaum]}
+  - {name: Solapur, state: Maharashtra, aliases: []}
+  - {name: Jamshedpur, state: Jharkhand, aliases: []}
+  - {name: Chaibasa, state: Jharkhand, aliases: []}
+
+# Sub-city localities that appear as "City" because the address parser took the wrong token.
+# They resolve to their parent city at reduced confidence rather than being discarded.
+localities:
+  Dwarka: Delhi
+  Rohini: Delhi
+  Saket: Delhi
+  Janakpuri: Delhi
+  Pitampura: Delhi
+  Ghitorni: Delhi
+  Mahipalpur: Delhi
+  Okhla: Delhi
+  Saidulajab: Delhi
+  Daryaganj: Delhi
+  Bakhtawarpur: Delhi
+  Koramangala: Bangalore
+  Domlur: Bangalore
+  Malleswaram: Bangalore
+  Mathikere: Bangalore
+  Hennur: Bangalore
+  Kharadi: Pune
+  Baner: Pune
+  Hadapsar: Pune
+  Kothrud: Pune
+  Warje: Pune
+  Pirangut: Pune
+  Gachibowli: Hyderabad
+  Kondapur: Hyderabad
+  Manikonda: Hyderabad
+  Kothapet: Hyderabad
+  Gopannapally: Hyderabad
+  Dahisar: Mumbai
+  Versova: Mumbai
+  Gota: Ahmedabad
+  Thaltej: Ahmedabad
+  Ambli: Ahmedabad
+  Sola: Ahmedabad
+  Jagatpura: Jaipur
+  Kukas: Jaipur
+
+states:
+  - {name: Maharashtra, aliases: []}
+  - {name: Karnataka, aliases: []}
+  - {name: Tamil Nadu, aliases: [Tamilnadu]}
+  - {name: Kerala, aliases: []}
+  - {name: Gujarat, aliases: []}
+  - {name: Rajasthan, aliases: []}
+  - {name: Punjab, aliases: []}
+  - {name: Haryana, aliases: []}
+  - {name: Uttar Pradesh, aliases: [UP]}
+  - {name: Uttarakhand, aliases: [Garhwal]}
+  - {name: Madhya Pradesh, aliases: []}
+  - {name: Chhattisgarh, aliases: []}
+  - {name: West Bengal, aliases: []}
+  - {name: Bihar, aliases: []}
+  - {name: Jharkhand, aliases: []}
+  - {name: Odisha, aliases: [Orissa]}
+  - {name: Telangana, aliases: []}
+  - {name: Andhra Pradesh, aliases: [Andra Pradesh]}
+  - {name: Assam, aliases: []}
+  - {name: Goa, aliases: []}
+  - {name: Delhi, aliases: []}
+  - {name: Himachal Pradesh, aliases: []}
+  - {name: Jammu and Kashmir, aliases: []}
+  - {name: Sikkim, aliases: []}
+  - {name: Manipur, aliases: []}
+  - {name: Nagaland, aliases: []}
+  - {name: Tripura, aliases: []}
+  - {name: Puducherry, aliases: []}
+  - {name: Chandigarh, aliases: []}
+
+# Tokens that are address furniture, not places. Matching one means the address parser sliced
+# mid-phrase; the value is rejected outright rather than fuzzy-matched to some real city.
+address_fragments:
+  - nagar
+  - vihar
+  - colony
+  - road
+  - marg
+  - bagh
+  - kunj
+  - kailash
+  - garden
+  - enclave
+  - block
+  - floor
+  - puram
+  - extension
+  - east
+  - west
+  - north
+  - south
+  - city
+  - area
+  - town
+  - square
+  - park
+  - centre
+  - center
+  - sector
+  - layout
+  - stage
+  - hills
+  - place
+  - gate
+  - village
+  - mohalla
+  - bazar
+  - dist
+  - cantonment
+  - tower
+  - mall
+  - farm
+  - complex
+  - society
+  - junction
+  - chowk
+  - phase
+  - lane
+  - street
+  - apartments
+  - plaza
+  - arcade
+  - station
+  - stand
+  - cir
+  - mor
+  - soudagar
+  - light
+  - field
+  - space
+  - business hub
+  - square mall
+  - center mall
+  - centre arcade
+  - centre metro station
+  - light road
+  - niwaru road
+  - indira nagar
+  - metro station
+
+# Values that are not locations at all — scraper noise, English words, institution names.
+non_place_tokens:
+  - india
+  - ncr
+  - bank
+  - pnb
+  - union bank
+  - institute
+  - institutions
+  - premier college
+  - academy
+  - coach
+  - hospital
+  - dental hospital
+  - diagnostics
+  - research
+  - metropolis
+  - valuation
+  - quality
+  - payment
+  - planning
+  - financial
+  - language
+  - english
+  - hindi
+  - difference
+  - attitudes
+  - academic
+  - today
+  - also
+  - more
+  - way
+  - mod
+  - prim
+  - iii
+  - jat
+  - sine complex
+  - the scenic state of sikkim
+  - vaidyaratnam
+  - udhyogpuram
+  - kishanpura
+  - ramchandpura
+  - jaipura
+  - pitmarpura
+  - rohani
+  - mohan
+  - dum
+  - ghana
+  - denpasar
+  - ubud
+  - blair
