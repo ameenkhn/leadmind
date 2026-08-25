@@ -78,6 +78,13 @@ class DuplicateCandidate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     evidence: Mapped[JSONBDict] = mapped_column(nullable=False, default=dict)
     resolved_at: Mapped[dt.datetime | None] = mapped_column(nullable=True)
     resolved_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """Free text from the reviewer.
+
+    A separate column rather than a key inside ``evidence``: that column holds what the
+    detector measured, and mixing a human's prose into it would make the machine evidence
+    unreproducible from the same inputs.
+    """
 
 
 class EvalLabel(UUIDPrimaryKeyMixin, TimestampMixin, Base):

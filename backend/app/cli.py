@@ -175,6 +175,33 @@ def verify_websites_command(
     _render_verification(report)
 
 
+@app.command("serve")
+def serve_command(
+    host: Annotated[str, typer.Option("--host", help="Bind address.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", min=1, max=65535)] = 8000,
+    reload: Annotated[
+        bool, typer.Option("--reload", help="Restart on code changes. Development only.")
+    ] = False,
+) -> None:
+    """Serve the read API and the duplicate review queue.
+
+    Binds to localhost by default. There is no authentication yet — that lands in Phase 10 with
+    the deployment story — so exposing this on 0.0.0.0 publishes the corpus to the network.
+    """
+    configure_logging()
+    import uvicorn
+
+    uvicorn.run(
+        "app.api.app:app",
+        host=host,
+        port=port,
+        reload=reload,
+        # structlog already renders access logs with a request id; uvicorn's own access log
+        # would print the same request a second time in a different format.
+        access_log=False,
+    )
+
+
 @app.command("rescore")
 def rescore_command(
     workbook: Annotated[

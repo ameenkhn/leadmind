@@ -41,6 +41,24 @@ class Settings(BaseSettings):
     config_dir: Path = Field(default=_REPO_ROOT / "config")
     data_dir: Path = Field(default=_REPO_ROOT / "data")
 
+    # --- API (Phase 2) -----------------------------------------------------------------
+    api_prefix: str = Field(default="/api/v1", description="Mount point for the versioned API")
+    api_docs_enabled: bool = Field(
+        default=True, description="Serve /docs and /openapi.json; turn off in production"
+    )
+    api_cors_origins: list[str] = Field(
+        default_factory=list,
+        description="Exact origins allowed to call the API. Empty means CORS is off.",
+    )
+    api_default_page_size: int = Field(default=25, ge=1, le=500)
+    api_max_page_size: int = Field(
+        default=200,
+        ge=1,
+        le=1000,
+        description="Hard ceiling on page_size. An unbounded list endpoint is a denial of "
+        "service with extra steps.",
+    )
+
     ingest_batch_size: int = Field(default=500, ge=1)
     fuzzy_name_threshold: int = Field(
         default=92,
@@ -57,6 +75,14 @@ class Settings(BaseSettings):
     @property
     def sync_database_url(self) -> str:
         return str(self.database_url)
+
+    @field_validator("api_cors_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, value: object) -> object:
+        """Accept ``a,b`` from the environment as well as a JSON list."""
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     def config_file(self, name: str) -> Path:
         path = self.config_dir / name

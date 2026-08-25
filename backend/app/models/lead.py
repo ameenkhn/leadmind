@@ -22,6 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, JSONBDict, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import EntityKind, IdentifierKind, MetricKind
+from app.models.taxonomy import Category, Location
 
 
 class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -58,6 +59,8 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_leads_normalized_name", "normalized_name"),
         Index("ix_leads_company_id", "company_id"),
+        Index("ix_leads_merged_into_id", "merged_into_id"),
+        CheckConstraint("merged_into_id <> id", name="no_self_merge"),
     )
 
     company_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -88,7 +91,31 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     first_seen_at: Mapped[dt.datetime | None] = mapped_column(nullable=True)
     last_seen_at: Mapped[dt.datetime | None] = mapped_column(nullable=True)
 
+    # --- Human review outcome (Phase 2) ------------------------------------------------
+    #
+    # A reviewer confirming a duplicate candidate does not delete a row. It points this lead
+    # at the survivor and leaves everything else — identifiers, observations, provenance,
+    # validation issues — exactly where it was. List endpoints hide merged leads by default;
+    # `include_merged=true` shows them, and clearing the pointer restores them completely.
+    #
+    # The alternative, deleting the loser and re-parenting its children, is irreversible and
+    # would break the reconciliation identity that proves ingestion worked. A reviewer is a
+    # fallible input like any other, and the 169 exact merges were auto-applied precisely
+    # because they were the only ones certain enough not to need an undo.
+    merged_into_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"), nullable=True
+    )
+    merged_at: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+    merged_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
     company: Mapped[Company | None] = relationship(back_populates="leads")
+    # One-directional: a category or a location does not need to enumerate its leads, and a
+    # back-reference on a 2 351-row table would make every taxonomy read pull the corpus.
+    category: Mapped[Category | None] = relationship(foreign_keys=[category_id])
+    location: Mapped[Location | None] = relationship(foreign_keys=[location_id])
+    merged_into: Mapped[Lead | None] = relationship(
+        remote_side="Lead.id", foreign_keys=[merged_into_id]
+    )
     identifiers: Mapped[list[LeadIdentifier]] = relationship(
         back_populates="lead", cascade="all, delete-orphan"
     )
@@ -98,6 +125,10 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     metrics: Mapped[list[MetricObservation]] = relationship(
         back_populates="lead", cascade="all, delete-orphan"
     )
+
+    @property
+    def is_merged(self) -> bool:
+        return self.merged_into_id is not None
 
     def identifier(self, kind: IdentifierKind) -> LeadIdentifier | None:
         for ident in self.identifiers:

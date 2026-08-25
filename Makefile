@@ -61,6 +61,16 @@ verify-status: ## Show verification coverage and staleness
 rescore: ## Recompute quality scores against the current rubric and verification data
 	$(VENV)/bin/leadmind rescore data/raw/Outbound_Leads.xlsx
 
+.PHONY: serve
+serve: ## Serve the API on http://127.0.0.1:8000 (docs at /docs)
+	$(VENV)/bin/leadmind serve --reload
+
+.PHONY: openapi
+openapi: ## Write the OpenAPI schema to docs/openapi.json
+	$(PY) -c "import json, pathlib; from app.api.app import create_app; \
+	pathlib.Path('docs/openapi.json').write_text(json.dumps(create_app().openapi(), indent=2))"
+	@echo "wrote docs/openapi.json"
+
 .PHONY: test
 test: ## Run the whole suite (needs a running database)
 	$(VENV)/bin/pytest backend/tests -q

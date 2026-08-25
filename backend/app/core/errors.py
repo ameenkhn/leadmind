@@ -42,3 +42,19 @@ class NormalizationError(LeadMindError):
 
 class IngestionError(LeadMindError):
     """The ingest pipeline could not complete."""
+
+
+class NotFoundError(LeadMindError):
+    """A requested resource does not exist."""
+
+
+class ConflictError(LeadMindError):
+    """The request is well-formed but conflicts with the current state of the resource.
+
+    Raised in the service layer rather than the API layer so the rule lives with the invariant it
+    protects, and so the same guard applies to a CLI or a background job that never sees HTTP.
+    """
+
+
+class InvalidRequestError(LeadMindError):
+    """The request is syntactically valid but semantically wrong for this resource."""

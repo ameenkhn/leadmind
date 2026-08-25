@@ -1,0 +1,3661 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LeadMind API",
+    "description": "\nRead access to the LeadMind corpus, and the human review queue for duplicates the pipeline\ndeliberately refused to merge.\n\n**Data quality is not lead quality.** Every `quality` field in this API answers *how much do we\nreliably know about this record* \u2014 completeness, reachability, verifiability. Whether a lead is\nworth contacting is a separate judgement with different inputs, and arrives in Phase 5.\n\n**`unknown` is not `unreachable`.** A domain with no MX record is a measurement. A resolver\ntimeout is the absence of one. They are different values everywhere in this API and must not be\ncollapsed by a client.\n",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Liveness",
+        "description": "Does not touch the database on purpose \u2014 see the module docstring.",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Readiness",
+        "operationId": "readyz_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/leads": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "List leads",
+        "operationId": "list_leads_api_v1_leads_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Substring match on name or any identifier value",
+              "title": "Q"
+            },
+            "description": "Substring match on name or any identifier value"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Controlled vertical slug; repeatable",
+              "title": "Category"
+            },
+            "description": "Controlled vertical slug; repeatable"
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Gazetteer location slug; repeatable",
+              "title": "Location"
+            },
+            "description": "Gazetteer location slug; repeatable"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Indian state; repeatable",
+              "title": "State"
+            },
+            "description": "Indian state; repeatable"
+          },
+          {
+            "name": "entity_kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EntityKind"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity Kind"
+            }
+          },
+          {
+            "name": "has",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentifierKind"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Require these channels; repeatable and combined with AND",
+              "title": "Has"
+            },
+            "description": "Require these channels; repeatable and combined with AND"
+          },
+          {
+            "name": "missing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentifierKind"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Require these channels to be absent",
+              "title": "Missing"
+            },
+            "description": "Require these channels to be absent"
+          },
+          {
+            "name": "min_quality",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Quality"
+            }
+          },
+          {
+            "name": "max_quality",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Quality"
+            }
+          },
+          {
+            "name": "min_followers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Followers"
+            }
+          },
+          {
+            "name": "max_followers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Followers"
+            }
+          },
+          {
+            "name": "owned_website",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Whether the lead has a domain of its own, as opposed to a social URL",
+              "title": "Owned Website"
+            },
+            "description": "Whether the lead has a domain of its own, as opposed to a social URL"
+          },
+          {
+            "name": "mailbox_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/VerificationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Measured MX outcome. `unreachable` means proven undeliverable; `unknown` means the resolver failed or the check has not run \u2014 they are not the same thing and this filter does not conflate them.",
+              "title": "Mailbox Status"
+            },
+            "description": "Measured MX outcome. `unreachable` means proven undeliverable; `unknown` means the resolver failed or the check has not run \u2014 they are not the same thing and this filter does not conflate them."
+          },
+          {
+            "name": "website_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/VerificationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Website Status"
+            }
+          },
+          {
+            "name": "mail_provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Mail host inferred from MX, e.g. `google`, `microsoft`",
+              "title": "Mail Provider"
+            },
+            "description": "Mail host inferred from MX, e.g. `google`, `microsoft`"
+          },
+          {
+            "name": "placeholder_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Anonymised `Advertiser 13887200` names",
+              "title": "Placeholder Name"
+            },
+            "description": "Anonymised `Advertiser 13887200` names"
+          },
+          {
+            "name": "company_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company Id"
+            }
+          },
+          {
+            "name": "multi_branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Leads whose company has more than one branch",
+              "title": "Multi Branch"
+            },
+            "description": "Leads whose company has more than one branch"
+          },
+          {
+            "name": "issue_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Leads carrying a given validation issue code",
+              "title": "Issue Code"
+            },
+            "description": "Leads carrying a given validation issue code"
+          },
+          {
+            "name": "include_merged",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include leads a reviewer confirmed as duplicates. They are hidden by default and never deleted.",
+              "default": false,
+              "title": "Include Merged"
+            },
+            "description": "Include leads a reviewer confirmed as duplicates. They are hidden by default and never deleted."
+          },
+          {
+            "name": "rubric_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Score against a specific rubric version instead of the current one",
+              "title": "Rubric Version"
+            },
+            "description": "Score against a specific rubric version instead of the current one"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "One of quality, followers, name, created, updated. Prefix with `-` for descending. Every ordering is tiebroken on id so paging is stable.",
+              "default": "-quality",
+              "title": "Sort"
+            },
+            "description": "One of quality, followers, name, created, updated. Prefix with `-` for descending. Every ordering is tiebroken on id so paging is stable."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "1-based page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "1-based page number"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Rows per page. Capped by LEADMIND_API_MAX_PAGE_SIZE \u2014 an unbounded list endpoint is a denial of service with extra steps.",
+              "title": "Page Size"
+            },
+            "description": "Rows per page. Capped by LEADMIND_API_MAX_PAGE_SIZE \u2014 an unbounded list endpoint is a denial of service with extra steps."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of leads, newest rubric scores attached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_LeadSummary_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/leads/{lead_id}": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "One lead, with its gaps",
+        "operationId": "get_lead_api_v1_leads__lead_id__get",
+        "parameters": [
+          {
+            "name": "lead_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Lead Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/leads/{lead_id}/quality": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Why this lead scored what it scored",
+        "operationId": "get_lead_quality_api_v1_leads__lead_id__quality_get",
+        "parameters": [
+          {
+            "name": "lead_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Lead Id"
+            }
+          },
+          {
+            "name": "rubric_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rubric Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadQualityDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/leads/{lead_id}/provenance": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "The spreadsheet rows this lead came from",
+        "operationId": "get_lead_provenance_api_v1_leads__lead_id__provenance_get",
+        "parameters": [
+          {
+            "name": "lead_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Lead Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvenanceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/companies": {
+      "get": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "List companies",
+        "operationId": "list_companies_api_v1_companies_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Substring match on domain or name",
+              "title": "Q"
+            },
+            "description": "Substring match on domain or name"
+          },
+          {
+            "name": "min_branches",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`2` gives the 28 multi-branch companies \u2014 franchises, mostly",
+              "title": "Min Branches"
+            },
+            "description": "`2` gives the 28 multi-branch companies \u2014 franchises, mostly"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "branches, domain, created or quality; prefix `-` for descending",
+              "default": "-branches",
+              "title": "Sort"
+            },
+            "description": "branches, domain, created or quality; prefix `-` for descending"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "1-based page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "1-based page number"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Rows per page. Capped by LEADMIND_API_MAX_PAGE_SIZE \u2014 an unbounded list endpoint is a denial of service with extra steps.",
+              "title": "Page Size"
+            },
+            "description": "Rows per page. Capped by LEADMIND_API_MAX_PAGE_SIZE \u2014 an unbounded list endpoint is a denial of service with extra steps."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CompanySummary_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/companies/{company_id}": {
+      "get": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "One company and all its branches",
+        "operationId": "get_company_api_v1_companies__company_id__get",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meta/categories": {
+      "get": {
+        "tags": [
+          "companies",
+          "metadata"
+        ],
+        "summary": "Controlled verticals with live lead counts",
+        "description": "The vertical taxonomy, not the 240 raw Facebook category strings it was built from.",
+        "operationId": "list_categories_api_v1_meta_categories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryCount"
+                  },
+                  "type": "array",
+                  "title": "Response List Categories Api V1 Meta Categories Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meta/locations": {
+      "get": {
+        "tags": [
+          "companies",
+          "metadata"
+        ],
+        "summary": "Resolved locations with live lead counts",
+        "description": "Only gazetteer-resolved places appear here.\n\nThe 16 city values that never resolved are kept on their leads verbatim and reported through\n`location.raw` with `resolved: false`, rather than being fuzzy-matched into a plausible wrong\ntown and then offered here as if they were real.",
+        "operationId": "list_locations_api_v1_meta_locations_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 1000,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LocationCount"
+                  },
+                  "title": "Response List Locations Api V1 Meta Locations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/duplicates": {
+      "get": {
+        "tags": [
+          "review queue"
+        ],
+        "summary": "List duplicate candidates awaiting review",
+        "operationId": "list_duplicates_api_v1_duplicates_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DuplicateStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Defaults to everything; usually `pending`",
+              "title": "Status"
+            },
+            "description": "Defaults to everything; usually `pending`"
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DuplicateMethod"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`shared_website` is usually a franchise; `fuzzy_name` is a hypothesis. Exact-key methods never appear here \u2014 they are merged during ingest.",
+              "title": "Method"
+            },
+            "description": "`shared_website` is usually a franchise; `fuzzy_name` is a hypothesis. Exact-key methods never appear here \u2014 they are merged during ingest."
+          },
+          {
+            "name": "min_confidence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 1,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence"
+            }
+          },
+          {
+            "name": "max_confidence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 1,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Confidence"
+            }
+          },
+          {
+            "name": "lead_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only pairs involving this lead",
+              "title": "Lead Id"
+            },
+            "description": "Only pairs involving this lead"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "confidence, created or method; prefix `-` for descending",
+              "default": "-confidence",
+              "title": "Sort"
+            },
+            "description": "confidence, created or method; prefix `-` for descending"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "1-based page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "1-based page number"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Rows per page. Capped by LEADMIND_API_MAX_PAGE_SIZE \u2014 an unbounded list endpoint is a denial of service with extra steps.",
+              "title": "Page Size"
+            },
+            "description": "Rows per page. Capped by LEADMIND_API_MAX_PAGE_SIZE \u2014 an unbounded list endpoint is a denial of service with extra steps."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pairs, each with both leads embedded and the field diff pre-computed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DuplicateCandidateOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/duplicates/{candidate_id}": {
+      "get": {
+        "tags": [
+          "review queue"
+        ],
+        "summary": "One pair, side by side",
+        "operationId": "get_duplicate_api_v1_duplicates__candidate_id__get",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateCandidateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/duplicates/{candidate_id}/decision": {
+      "post": {
+        "tags": [
+          "review queue"
+        ],
+        "summary": "Decide a pair",
+        "description": "Record a judgement.\n\n`confirmed_duplicate` points the loser at the survivor \u2014 a pointer, not a deletion. Nothing\nis moved or removed, so the decision is fully reversible by sending `pending`, which is what\nmakes it safe to decide quickly.\n\n`rejected_distinct` records that the pair is two real businesses. That answer is as valuable\nas a confirmation: the confirm rate per detection method in `GET /stats/review` is the\ndetector's measured precision, and it is what the fuzzy-name threshold should be tuned\nagainst.",
+        "operationId": "decide_duplicate_api_v1_duplicates__candidate_id__decision_post",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated candidate, and what the decision did to the leads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateDecisionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The decision conflicts with a merge already applied to one of these leads. Undo that one first."
+          },
+          "422": {
+            "description": "survivor_id is not one of the two leads in the pair."
+          }
+        }
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Corpus overview and reconciliation",
+        "description": "Counts, plus the reconciliation identity from the last successful ingest.\n\n`rows_read == leads_total + rows_merged` is the only proof that ingestion did not silently\nlose a row. It is asserted by the CLI and by the golden test; exposing it here keeps it\ncheckable against a running system rather than only at build time.",
+        "operationId": "corpus_api_v1_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorpusStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/quality": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Data quality distribution",
+        "description": "Distribution of the data quality score \u2014 how much is known per record.\n\nNot a lead score. It answers \"how much do we reliably know about this record\", which is a\nprerequisite for, and independent of, \"is this lead worth contacting\".\n\n`factors_evaluated` is the important column. A lead scored on 9 of 11 factors and one scored\non all 11 are not directly comparable, and a rubric factor that could not be evaluated is\ndropped from both numerator and denominator rather than counted as zero.",
+        "operationId": "quality_api_v1_stats_quality_get",
+        "parameters": [
+          {
+            "name": "rubric_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rubric Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityStats"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/verification": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Verification coverage and results",
+        "description": "What has been measured about reachability, and how stale it is.\n\n`stale` counts records past their TTL, which the next verification run re-checks. A\nverification is a statement about a moment; without expiry the system would keep presenting\na months-old DNS answer as current fact.",
+        "operationId": "verification_api_v1_stats_verification_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/review": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Review queue depth and detector precision",
+        "description": "Queue depth, and what the human decisions say about the detectors that filled it.\n\n`confirm_rate` per method is the observed precision of that detector on pairs a person has\nactually looked at. That is the number the fuzzy-name threshold should be tuned against \u2014\nlabelled data produced by the review process itself, rather than a threshold picked because\n92 sounded strict.",
+        "operationId": "review_api_v1_stats_review_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CategoryCount": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "parent_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Slug"
+          },
+          "lead_count": {
+            "type": "integer",
+            "title": "Lead Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "label",
+          "lead_count"
+        ],
+        "title": "CategoryCount"
+      },
+      "CategoryRef": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "parent_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Slug"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "label"
+        ],
+        "title": "CategoryRef"
+      },
+      "CompanyDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "primary_domain": {
+            "type": "string",
+            "title": "Primary Domain"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url"
+          },
+          "branch_count": {
+            "type": "integer",
+            "title": "Branch Count",
+            "description": "Leads sharing this domain"
+          },
+          "locations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Locations",
+            "description": "Distinct resolved cities across the branches"
+          },
+          "mean_quality": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Quality"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry",
+            "description": "Empty across this dataset. The source workbook contains no firmographics at all; Phase 3 enrichment fills this from the crawl."
+          },
+          "company_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Size"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "leads": {
+            "items": {
+              "$ref": "#/components/schemas/LeadSummary"
+            },
+            "type": "array",
+            "title": "Leads"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "primary_domain",
+          "branch_count",
+          "created_at"
+        ],
+        "title": "CompanyDetail"
+      },
+      "CompanyRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "primary_domain": {
+            "type": "string",
+            "title": "Primary Domain"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "branch_count": {
+            "type": "integer",
+            "title": "Branch Count",
+            "description": "Leads sharing this domain, this lead included"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "primary_domain",
+          "branch_count"
+        ],
+        "title": "CompanyRef"
+      },
+      "CompanySummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "primary_domain": {
+            "type": "string",
+            "title": "Primary Domain"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url"
+          },
+          "branch_count": {
+            "type": "integer",
+            "title": "Branch Count",
+            "description": "Leads sharing this domain"
+          },
+          "locations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Locations",
+            "description": "Distinct resolved cities across the branches"
+          },
+          "mean_quality": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Quality"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "primary_domain",
+          "branch_count",
+          "created_at"
+        ],
+        "title": "CompanySummary"
+      },
+      "CorpusStats": {
+        "properties": {
+          "leads": {
+            "type": "integer",
+            "title": "Leads"
+          },
+          "leads_merged_by_review": {
+            "type": "integer",
+            "title": "Leads Merged By Review",
+            "description": "Leads a human confirmed as duplicates. Hidden from listings, still present."
+          },
+          "companies": {
+            "type": "integer",
+            "title": "Companies"
+          },
+          "companies_multi_branch": {
+            "type": "integer",
+            "title": "Companies Multi Branch"
+          },
+          "identifiers": {
+            "type": "integer",
+            "title": "Identifiers"
+          },
+          "identifiers_by_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Identifiers By Kind"
+          },
+          "leads_by_entity_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Leads By Entity Kind"
+          },
+          "metric_observations": {
+            "type": "integer",
+            "title": "Metric Observations"
+          },
+          "source_queries": {
+            "type": "integer",
+            "title": "Source Queries"
+          },
+          "eval_labels_by_source": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Eval Labels By Source"
+          },
+          "validation_issues": {
+            "type": "integer",
+            "title": "Validation Issues"
+          },
+          "validation_issues_by_code": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Validation Issues By Code"
+          },
+          "leads_with_owned_website": {
+            "type": "integer",
+            "title": "Leads With Owned Website"
+          },
+          "leads_with_location": {
+            "type": "integer",
+            "title": "Leads With Location"
+          },
+          "leads_with_category": {
+            "type": "integer",
+            "title": "Leads With Category"
+          },
+          "reconciliation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReconciliationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "leads",
+          "leads_merged_by_review",
+          "companies",
+          "companies_multi_branch",
+          "identifiers",
+          "metric_observations",
+          "source_queries",
+          "validation_issues",
+          "leads_with_owned_website",
+          "leads_with_location",
+          "leads_with_category"
+        ],
+        "title": "CorpusStats"
+      },
+      "DuplicateCandidateOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "method": {
+            "$ref": "#/components/schemas/DuplicateMethod"
+          },
+          "is_auto_mergeable": {
+            "type": "boolean",
+            "title": "Is Auto Mergeable",
+            "description": "False for everything in this queue by construction \u2014 exact-key matches are merged during ingest and never reach a human."
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DuplicateStatus"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By"
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "lead_a": {
+            "$ref": "#/components/schemas/LeadSummary"
+          },
+          "lead_b": {
+            "$ref": "#/components/schemas/LeadSummary"
+          },
+          "comparison": {
+            "items": {
+              "$ref": "#/components/schemas/FieldComparison"
+            },
+            "type": "array",
+            "title": "Comparison"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "method",
+          "is_auto_mergeable",
+          "confidence",
+          "status",
+          "lead_a",
+          "lead_b",
+          "created_at"
+        ],
+        "title": "DuplicateCandidateOut"
+      },
+      "DuplicateDecisionRequest": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "confirmed_duplicate",
+              "rejected_distinct",
+              "pending"
+            ],
+            "title": "Decision"
+          },
+          "reviewer": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Reviewer",
+            "description": "Who decided. Recorded, because an unattributed judgement cannot be audited or reweighted later."
+          },
+          "survivor_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Survivor Id",
+            "description": "Which of the two leads to keep. Defaults to the better-evidenced one: higher quality score, then more identifiers, then the earlier row."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision",
+          "reviewer"
+        ],
+        "title": "DuplicateDecisionRequest",
+        "description": "A reviewer's answer.\n\n``pending`` is a legal decision, not an omission: it is the undo. Setting a decided pair back\nto pending reverses any merge the confirmation applied and returns the pair to the queue."
+      },
+      "DuplicateDecisionResponse": {
+        "properties": {
+          "candidate": {
+            "$ref": "#/components/schemas/DuplicateCandidateOut"
+          },
+          "merged_lead_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged Lead Id",
+            "description": "The lead now pointing at a survivor, if the merge was applied"
+          },
+          "survivor_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Survivor Id"
+          },
+          "unmerged": {
+            "type": "boolean",
+            "title": "Unmerged",
+            "description": "True when this decision reversed an earlier merge",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate"
+        ],
+        "title": "DuplicateDecisionResponse"
+      },
+      "DuplicateMethod": {
+        "type": "string",
+        "enum": [
+          "exact_email",
+          "exact_phone",
+          "exact_facebook",
+          "shared_website",
+          "fuzzy_name"
+        ],
+        "title": "DuplicateMethod",
+        "description": "How two records were found to be potentially the same lead.\n\nThe first three are exact and safe to auto-merge. The last two are *not*: a shared website\nis routinely a franchise relationship (five Pumo Technovation branches share one corporate\ndomain and are five real prospects), and a high name similarity is a hypothesis."
+      },
+      "DuplicateStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "confirmed_duplicate",
+          "rejected_distinct"
+        ],
+        "title": "DuplicateStatus"
+      },
+      "EntityKind": {
+        "type": "string",
+        "enum": [
+          "person",
+          "business",
+          "unknown"
+        ],
+        "title": "EntityKind",
+        "description": "Whether a lead's name denotes a person, a business, or cannot be told apart."
+      },
+      "FieldComparison": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "a": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "A"
+          },
+          "b": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "B"
+          },
+          "agrees": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agrees",
+            "description": "Null when the field is missing on at least one side"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field"
+        ],
+        "title": "FieldComparison",
+        "description": "One field, side by side, with the verdict pre-computed.\n\nReviewers make this call fastest when the disagreements are already found for them. Rendering\ntwo records and leaving the diff to the eye is how franchises get merged at 2am."
+      },
+      "FollowersOut": {
+        "properties": {
+          "value": {
+            "type": "integer",
+            "title": "Value"
+          },
+          "value_raw": {
+            "type": "string",
+            "title": "Value Raw"
+          },
+          "batch": {
+            "type": "string",
+            "title": "Batch"
+          },
+          "observations": {
+            "type": "integer",
+            "title": "Observations",
+            "description": "How many times this lead's audience was measured"
+          },
+          "changed": {
+            "type": "boolean",
+            "title": "Changed",
+            "description": "Whether the observations disagree. 63 leads do, which is a growth signal rather than dirt."
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "value_raw",
+          "batch",
+          "observations",
+          "changed"
+        ],
+        "title": "FollowersOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "environment": {
+            "type": "string",
+            "title": "Environment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "environment"
+        ],
+        "title": "HealthResponse"
+      },
+      "IdentifierKind": {
+        "type": "string",
+        "enum": [
+          "email",
+          "phone",
+          "whatsapp",
+          "website",
+          "facebook",
+          "instagram",
+          "youtube",
+          "linkedin"
+        ],
+        "title": "IdentifierKind",
+        "description": "Channels a lead can be reached or identified by.\n\nModelled as rows in ``lead_identifiers`` rather than eight sparse columns on ``leads``:\nthe source data fills between 12% and 100% of them, dedup needs to query across all of\nthem, and a ninth channel should be a row, not a migration."
+      },
+      "IdentifierOut": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/IdentifierKind"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "description": "The normalised value"
+          },
+          "value_raw": {
+            "type": "string",
+            "title": "Value Raw"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "title": "Is Primary"
+          },
+          "is_valid": {
+            "type": "boolean",
+            "title": "Is Valid"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Attributes",
+            "description": "Normaliser output \u2014 e.g. whether an email is freemail or role-based"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "value",
+          "value_raw",
+          "is_primary",
+          "is_valid",
+          "confidence"
+        ],
+        "title": "IdentifierOut"
+      },
+      "LeadDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "entity_kind": {
+            "$ref": "#/components/schemas/EntityKind"
+          },
+          "is_placeholder_name": {
+            "type": "boolean",
+            "title": "Is Placeholder Name"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fb_category_raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fb Category Raw"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocationRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/IdentifierKind"
+            },
+            "type": "array",
+            "title": "Channels",
+            "description": "Which contact channels exist for this lead"
+          },
+          "primary_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Email"
+          },
+          "primary_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Phone"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "followers": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FollowersOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QualityRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification": {
+            "$ref": "#/components/schemas/VerificationOut"
+          },
+          "issue_count": {
+            "type": "integer",
+            "title": "Issue Count",
+            "default": 0
+          },
+          "merged": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when a reviewer confirmed this lead as a duplicate of another. The row is intact and hidden from listings, not deleted."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "identifiers": {
+            "items": {
+              "$ref": "#/components/schemas/IdentifierOut"
+            },
+            "type": "array",
+            "title": "Identifiers"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricOut"
+            },
+            "type": "array",
+            "title": "Metrics"
+          },
+          "source_queries": {
+            "items": {
+              "$ref": "#/components/schemas/SourceQueryOut"
+            },
+            "type": "array",
+            "title": "Source Queries"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssueOut"
+            },
+            "type": "array",
+            "title": "Issues",
+            "description": "Recorded validation failures. Nothing was dropped because of them \u2014 they are the explicit gaps in this record."
+          },
+          "siblings": {
+            "items": {
+              "$ref": "#/components/schemas/SiblingOut"
+            },
+            "type": "array",
+            "title": "Siblings",
+            "description": "Other leads at the same company \u2014 branches, usually"
+          },
+          "duplicate_candidate_count": {
+            "type": "integer",
+            "title": "Duplicate Candidate Count",
+            "default": 0
+          },
+          "niche_raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Niche Raw"
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen At"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "entity_kind",
+          "is_placeholder_name",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "LeadDetail",
+        "description": "One lead, with everything known about it and everything not known about it."
+      },
+      "LeadQualityDetail": {
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Lead Id"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "rubric_version": {
+            "type": "string",
+            "title": "Rubric Version"
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Computed At"
+          },
+          "base_score": {
+            "type": "number",
+            "title": "Base Score",
+            "description": "Weighted factor score before penalties"
+          },
+          "penalty_total": {
+            "type": "number",
+            "title": "Penalty Total",
+            "description": "Penalties as accrued, before the cap"
+          },
+          "penalty_applied": {
+            "type": "number",
+            "title": "Penalty Applied",
+            "description": "Penalties after the cap \u2014 what was subtracted"
+          },
+          "factors_evaluated": {
+            "type": "integer",
+            "title": "Factors Evaluated"
+          },
+          "factors_total": {
+            "type": "integer",
+            "title": "Factors Total"
+          },
+          "weight_available": {
+            "type": "number",
+            "title": "Weight Available",
+            "description": "Sum of the weights of the factors that could be evaluated. The score is earned/available, so unmeasurable factors neither help nor hurt."
+          },
+          "factors": {
+            "items": {
+              "$ref": "#/components/schemas/QualityFactorOut"
+            },
+            "type": "array",
+            "title": "Factors"
+          },
+          "penalties": {
+            "items": {
+              "$ref": "#/components/schemas/QualityPenaltyOut"
+            },
+            "type": "array",
+            "title": "Penalties"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lead_id",
+          "score",
+          "rubric_version",
+          "computed_at",
+          "base_score",
+          "penalty_total",
+          "penalty_applied",
+          "factors_evaluated",
+          "factors_total",
+          "weight_available"
+        ],
+        "title": "LeadQualityDetail",
+        "description": "The answer to \"why is this lead an 87?\", without recomputing anything.\n\nEvery factor's value, weight, contribution and reason was persisted at scoring time along\nwith the rubric version that produced it, so this endpoint reads rather than re-derives.\nRe-deriving would answer a subtly different question \u2014 what the *current* rubric would say \u2014\nand quietly make old scores unexplainable the day the rubric changes."
+      },
+      "LeadSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "entity_kind": {
+            "$ref": "#/components/schemas/EntityKind"
+          },
+          "is_placeholder_name": {
+            "type": "boolean",
+            "title": "Is Placeholder Name"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fb_category_raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fb Category Raw"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocationRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/IdentifierKind"
+            },
+            "type": "array",
+            "title": "Channels",
+            "description": "Which contact channels exist for this lead"
+          },
+          "primary_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Email"
+          },
+          "primary_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Phone"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "followers": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FollowersOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QualityRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification": {
+            "$ref": "#/components/schemas/VerificationOut"
+          },
+          "issue_count": {
+            "type": "integer",
+            "title": "Issue Count",
+            "default": 0
+          },
+          "merged": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when a reviewer confirmed this lead as a duplicate of another. The row is intact and hidden from listings, not deleted."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "entity_kind",
+          "is_placeholder_name",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "LeadSummary",
+        "description": "One row of the leads list."
+      },
+      "LocationCount": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "lead_count": {
+            "type": "integer",
+            "title": "Lead Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "lead_count"
+        ],
+        "title": "LocationCount"
+      },
+      "LocationRef": {
+        "properties": {
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw",
+            "description": "The source value, kept verbatim"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence",
+            "description": "Gazetteer match confidence. Null means the value was never resolved and is shown as it arrived rather than fuzzy-matched into a plausible wrong answer."
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "LocationRef"
+      },
+      "MergeInfo": {
+        "properties": {
+          "merged_into_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Merged Into Id"
+          },
+          "merged_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged At"
+          },
+          "merged_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "merged_into_id"
+        ],
+        "title": "MergeInfo"
+      },
+      "MethodReviewStats": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "confirmed_duplicate": {
+            "type": "integer",
+            "title": "Confirmed Duplicate"
+          },
+          "rejected_distinct": {
+            "type": "integer",
+            "title": "Rejected Distinct"
+          },
+          "confirm_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Rate",
+            "description": "Of the decided pairs, the share confirmed. This is the detector's observed precision, and the number the fuzzy-name threshold should be tuned against \u2014 measured on reviewed pairs rather than chosen by feel."
+          },
+          "mean_confidence_confirmed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Confidence Confirmed"
+          },
+          "mean_confidence_rejected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Confidence Rejected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "pending",
+          "confirmed_duplicate",
+          "rejected_distinct"
+        ],
+        "title": "MethodReviewStats"
+      },
+      "MetricOut": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "value": {
+            "type": "integer",
+            "title": "Value"
+          },
+          "value_raw": {
+            "type": "string",
+            "title": "Value Raw"
+          },
+          "batch": {
+            "type": "string",
+            "title": "Batch",
+            "description": "Which observation this is \u2014 here, the source sheet"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At",
+            "description": "Null throughout this dataset: the workbook carries no scrape dates, and inventing one would fabricate the growth rate it was meant to measure."
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "value",
+          "value_raw",
+          "batch",
+          "source"
+        ],
+        "title": "MetricOut"
+      },
+      "Page_CompanySummary_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CompanySummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Rows matching the filter, ignoring pagination"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page Size"
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pages",
+            "description": "Total number of pages at this page size"
+          },
+          "has_next": {
+            "type": "boolean",
+            "title": "Has Next"
+          },
+          "has_previous": {
+            "type": "boolean",
+            "title": "Has Previous"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages",
+          "has_next",
+          "has_previous"
+        ],
+        "title": "Page[CompanySummary]"
+      },
+      "Page_DuplicateCandidateOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateCandidateOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Rows matching the filter, ignoring pagination"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page Size"
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pages",
+            "description": "Total number of pages at this page size"
+          },
+          "has_next": {
+            "type": "boolean",
+            "title": "Has Next"
+          },
+          "has_previous": {
+            "type": "boolean",
+            "title": "Has Previous"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages",
+          "has_next",
+          "has_previous"
+        ],
+        "title": "Page[DuplicateCandidateOut]"
+      },
+      "Page_LeadSummary_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LeadSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Rows matching the filter, ignoring pagination"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page Size"
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pages",
+            "description": "Total number of pages at this page size"
+          },
+          "has_next": {
+            "type": "boolean",
+            "title": "Has Next"
+          },
+          "has_previous": {
+            "type": "boolean",
+            "title": "Has Previous"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages",
+          "has_next",
+          "has_previous"
+        ],
+        "title": "Page[LeadSummary]"
+      },
+      "ProvenanceOut": {
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Lead Id"
+          },
+          "source_records": {
+            "items": {
+              "$ref": "#/components/schemas/SourceRecordOut"
+            },
+            "type": "array",
+            "title": "Source Records"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lead_id"
+        ],
+        "title": "ProvenanceOut"
+      },
+      "QualityFactorOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "The factor's normalised value in [0, 1], or null when it could not be evaluated at all \u2014 in which case it is dropped from the score rather than counted zero."
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "contribution": {
+            "type": "number",
+            "title": "Contribution"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "measured": {
+            "type": "boolean",
+            "title": "Measured"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "The rubric's own explanation of what this factor asks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "weight",
+          "contribution",
+          "reason",
+          "measured"
+        ],
+        "title": "QualityFactorOut"
+      },
+      "QualityPenaltyOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "triggered_by": {
+            "type": "string",
+            "title": "Triggered By",
+            "description": "The validation code or measurement that fired it"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "amount",
+          "triggered_by"
+        ],
+        "title": "QualityPenaltyOut"
+      },
+      "QualityRef": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "rubric_version": {
+            "type": "string",
+            "title": "Rubric Version"
+          },
+          "factors_evaluated": {
+            "type": "integer",
+            "title": "Factors Evaluated",
+            "description": "How many rubric factors could actually be evaluated. A partially-measured 80 is a different claim from a fully-measured 80, so the count travels with the score."
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "rubric_version",
+          "factors_evaluated"
+        ],
+        "title": "QualityRef"
+      },
+      "QualityStats": {
+        "properties": {
+          "rubric_version": {
+            "type": "string",
+            "title": "Rubric Version"
+          },
+          "scored_leads": {
+            "type": "integer",
+            "title": "Scored Leads"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "p10": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P10"
+          },
+          "p90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P90"
+          },
+          "histogram": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Histogram"
+          },
+          "factors_evaluated": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Factors Evaluated",
+            "description": "How many leads had N rubric factors actually measured. A wide spread here means scores are not comparable to each other without reading the count."
+          }
+        },
+        "type": "object",
+        "required": [
+          "rubric_version",
+          "scored_leads"
+        ],
+        "title": "QualityStats"
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "database": {
+            "type": "string",
+            "title": "Database"
+          },
+          "schema_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Revision"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
+          "schema_current": {
+            "type": "boolean",
+            "title": "Schema Current"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "database",
+          "schema_current"
+        ],
+        "title": "ReadinessResponse",
+        "description": "Whether this process can actually serve traffic.\n\nSeparate from liveness on purpose. A process with an unreachable database is alive and should\nnot be restarted; it is not ready and should not receive requests. Collapsing the two makes a\ndatabase blip look like a crash loop."
+      },
+      "ReconciliationOut": {
+        "properties": {
+          "rows_read": {
+            "type": "integer",
+            "title": "Rows Read"
+          },
+          "rows_merged": {
+            "type": "integer",
+            "title": "Rows Merged"
+          },
+          "leads_total": {
+            "type": "integer",
+            "title": "Leads Total"
+          },
+          "reconciles": {
+            "type": "boolean",
+            "title": "Reconciles"
+          },
+          "source_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source File"
+          },
+          "source_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Sha256"
+          },
+          "ingested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingested At"
+          },
+          "code_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rows_read",
+          "rows_merged",
+          "leads_total",
+          "reconciles"
+        ],
+        "title": "ReconciliationOut",
+        "description": "The identity that proves ingestion did not lose anything.\n\n``rows_read == leads_total + rows_merged``. It is asserted by the ingest CLI, by the golden\ntest, and reported here so it stays checkable at runtime rather than only at build time."
+      },
+      "ReviewStats": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "decided": {
+            "type": "integer",
+            "title": "Decided"
+          },
+          "by_method": {
+            "items": {
+              "$ref": "#/components/schemas/MethodReviewStats"
+            },
+            "type": "array",
+            "title": "By Method"
+          },
+          "reviewers": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Reviewers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "pending",
+          "decided"
+        ],
+        "title": "ReviewStats"
+      },
+      "SiblingOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "primary_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "title": "SiblingOut"
+      },
+      "SourceQueryOut": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "source_is_inferred": {
+            "type": "boolean",
+            "title": "Source Is Inferred"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "source",
+          "source_is_inferred"
+        ],
+        "title": "SourceQueryOut"
+      },
+      "SourceRecordOut": {
+        "properties": {
+          "source_file": {
+            "type": "string",
+            "title": "Source File"
+          },
+          "source_sheet": {
+            "type": "string",
+            "title": "Source Sheet"
+          },
+          "source_row_no": {
+            "type": "integer",
+            "title": "Source Row No"
+          },
+          "source_serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Serial"
+          },
+          "row_sha256": {
+            "type": "string",
+            "title": "Row Sha256"
+          },
+          "raw": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Raw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_file",
+          "source_sheet",
+          "source_row_no",
+          "row_sha256",
+          "raw"
+        ],
+        "title": "SourceRecordOut",
+        "description": "Provenance: the spreadsheet cell every normalised value came from."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ValidationIssueOut": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/ValidationSeverity"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "value_raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Raw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "code",
+          "severity",
+          "message"
+        ],
+        "title": "ValidationIssueOut"
+      },
+      "ValidationSeverity": {
+        "type": "string",
+        "enum": [
+          "info",
+          "warning",
+          "error"
+        ],
+        "title": "ValidationSeverity",
+        "description": "How badly a validation failure damages the record.\n\n``ERROR`` never means \"drop the row\" \u2014 it means the field is unusable and the reason is\nrecorded. Silently discarding source rows is how a pipeline stops being auditable."
+      },
+      "VerificationCoverage": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "records": {
+            "type": "integer",
+            "title": "Records"
+          },
+          "fresh": {
+            "type": "integer",
+            "title": "Fresh",
+            "description": "Inside their TTL"
+          },
+          "stale": {
+            "type": "integer",
+            "title": "Stale",
+            "description": "Past their TTL; the next run re-checks these"
+          },
+          "by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "records",
+          "fresh",
+          "stale"
+        ],
+        "title": "VerificationCoverage"
+      },
+      "VerificationOut": {
+        "properties": {
+          "mailbox_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mailbox_accepts_mail": {
+            "type": "boolean",
+            "title": "Mailbox Accepts Mail",
+            "default": false
+          },
+          "mail_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mail Provider"
+          },
+          "website_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "website_is_live": {
+            "type": "boolean",
+            "title": "Website Is Live",
+            "default": false
+          },
+          "website_is_parked": {
+            "type": "boolean",
+            "title": "Website Is Parked",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "VerificationOut",
+        "description": "What was measured about reachability, and what was not.\n\nThree distinct states, and collapsing any two of them loses real information:\n\n* ``null`` \u2014 there is nothing to check. The lead has no email address, or no website.\n* ``unknown`` \u2014 there is something to check and it has not been measured: the check has not\n  run, or the resolver failed.\n* ``verified`` / ``unreachable`` \u2014 a measurement. ``unreachable`` means the domain answered\n  and publishes no mail exchanger; mail to this lead cannot be delivered.\n\nA client that treats ``unknown`` as ``unreachable`` will mark good leads dead on the strength\nof one bad afternoon of DNS \u2014 and the result is cached, so it stays wrong."
+      },
+      "VerificationStats": {
+        "properties": {
+          "coverage": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationCoverage"
+            },
+            "type": "array",
+            "title": "Coverage"
+          },
+          "leads_with_verified_mailbox": {
+            "type": "integer",
+            "title": "Leads With Verified Mailbox"
+          },
+          "leads_proven_undeliverable": {
+            "type": "integer",
+            "title": "Leads Proven Undeliverable",
+            "description": "Measured, not suspected: the domain resolved and publishes no MX record."
+          },
+          "leads_with_live_website": {
+            "type": "integer",
+            "title": "Leads With Live Website"
+          },
+          "leads_on_managed_mail": {
+            "type": "integer",
+            "title": "Leads On Managed Mail",
+            "description": "Leads on a non-free domain whose MX is Google Workspace, Microsoft 365, Zoho or similar \u2014 a business paying for managed email, which is a digital-maturity proxy in a dataset with no firmographics. Free providers are excluded: gmail.com's MX is Google's, and counting it would turn every personal address into a buying signal."
+          }
+        },
+        "type": "object",
+        "required": [
+          "leads_with_verified_mailbox",
+          "leads_proven_undeliverable",
+          "leads_with_live_website",
+          "leads_on_managed_mail"
+        ],
+        "title": "VerificationStats"
+      },
+      "VerificationStatus": {
+        "type": "string",
+        "enum": [
+          "verified",
+          "unreachable",
+          "unknown",
+          "skipped"
+        ],
+        "title": "VerificationStatus",
+        "description": "The outcome of a check.\n\nThe distinction that matters is between ``UNREACHABLE`` and ``UNKNOWN``. The first is a\nmeasurement: the domain resolved and has no mail exchanger. The second is an absence of\nmeasurement: the resolver timed out, the network was down, the check was never run. Folding\nthem together would let an outage silently downgrade thousands of good leads."
+      }
+    }
+  }
+}
